@@ -1,0 +1,4411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rental Billing Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ---- Embedded qrcode-generator (Kazuhiko Arase, MIT) - inline, no network needed ---- */
+//---------------------------------------------------------------------
+//
+// QR Code Generator for JavaScript
+//
+// Copyright (c) 2009 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//  http://www.opensource.org/licenses/mit-license.php
+//
+// The word 'QR Code' is registered trademark of
+// DENSO WAVE INCORPORATED
+//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+
+var qrcode = function() {
+
+  //---------------------------------------------------------------------
+  // qrcode
+  //---------------------------------------------------------------------
+
+  /**
+   * qrcode
+   * @param typeNumber 1 to 40
+   * @param errorCorrectionLevel 'L','M','Q','H'
+   */
+  var qrcode = function(typeNumber, errorCorrectionLevel) {
+
+    var PAD0 = 0xEC;
+    var PAD1 = 0x11;
+
+    var _typeNumber = typeNumber;
+    var _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+    var _modules = null;
+    var _moduleCount = 0;
+    var _dataCache = null;
+    var _dataList = [];
+
+    var _this = {};
+
+    var makeImpl = function(test, maskPattern) {
+
+      _moduleCount = _typeNumber * 4 + 17;
+      _modules = function(moduleCount) {
+        var modules = new Array(moduleCount);
+        for (var row = 0; row < moduleCount; row += 1) {
+          modules[row] = new Array(moduleCount);
+          for (var col = 0; col < moduleCount; col += 1) {
+            modules[row][col] = null;
+          }
+        }
+        return modules;
+      }(_moduleCount);
+
+      setupPositionProbePattern(0, 0);
+      setupPositionProbePattern(_moduleCount - 7, 0);
+      setupPositionProbePattern(0, _moduleCount - 7);
+      setupPositionAdjustPattern();
+      setupTimingPattern();
+      setupTypeInfo(test, maskPattern);
+
+      if (_typeNumber >= 7) {
+        setupTypeNumber(test);
+      }
+
+      if (_dataCache == null) {
+        _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+      }
+
+      mapData(_dataCache, maskPattern);
+    };
+
+    var setupPositionProbePattern = function(row, col) {
+
+      for (var r = -1; r <= 7; r += 1) {
+
+        if (row + r <= -1 || _moduleCount <= row + r) continue;
+
+        for (var c = -1; c <= 7; c += 1) {
+
+          if (col + c <= -1 || _moduleCount <= col + c) continue;
+
+          if ( (0 <= r && r <= 6 && (c == 0 || c == 6) )
+              || (0 <= c && c <= 6 && (r == 0 || r == 6) )
+              || (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+            _modules[row + r][col + c] = true;
+          } else {
+            _modules[row + r][col + c] = false;
+          }
+        }
+      }
+    };
+
+    var getBestMaskPattern = function() {
+
+      var minLostPoint = 0;
+      var pattern = 0;
+
+      for (var i = 0; i < 8; i += 1) {
+
+        makeImpl(true, i);
+
+        var lostPoint = QRUtil.getLostPoint(_this);
+
+        if (i == 0 || minLostPoint > lostPoint) {
+          minLostPoint = lostPoint;
+          pattern = i;
+        }
+      }
+
+      return pattern;
+    };
+
+    var setupTimingPattern = function() {
+
+      for (var r = 8; r < _moduleCount - 8; r += 1) {
+        if (_modules[r][6] != null) {
+          continue;
+        }
+        _modules[r][6] = (r % 2 == 0);
+      }
+
+      for (var c = 8; c < _moduleCount - 8; c += 1) {
+        if (_modules[6][c] != null) {
+          continue;
+        }
+        _modules[6][c] = (c % 2 == 0);
+      }
+    };
+
+    var setupPositionAdjustPattern = function() {
+
+      var pos = QRUtil.getPatternPosition(_typeNumber);
+
+      for (var i = 0; i < pos.length; i += 1) {
+
+        for (var j = 0; j < pos.length; j += 1) {
+
+          var row = pos[i];
+          var col = pos[j];
+
+          if (_modules[row][col] != null) {
+            continue;
+          }
+
+          for (var r = -2; r <= 2; r += 1) {
+
+            for (var c = -2; c <= 2; c += 1) {
+
+              if (r == -2 || r == 2 || c == -2 || c == 2
+                  || (r == 0 && c == 0) ) {
+                _modules[row + r][col + c] = true;
+              } else {
+                _modules[row + r][col + c] = false;
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var setupTypeNumber = function(test) {
+
+      var bits = QRUtil.getBCHTypeNumber(_typeNumber);
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+      }
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+      }
+    };
+
+    var setupTypeInfo = function(test, maskPattern) {
+
+      var data = (_errorCorrectionLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+
+      // vertical
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 6) {
+          _modules[i][8] = mod;
+        } else if (i < 8) {
+          _modules[i + 1][8] = mod;
+        } else {
+          _modules[_moduleCount - 15 + i][8] = mod;
+        }
+      }
+
+      // horizontal
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 8) {
+          _modules[8][_moduleCount - i - 1] = mod;
+        } else if (i < 9) {
+          _modules[8][15 - i - 1 + 1] = mod;
+        } else {
+          _modules[8][15 - i - 1] = mod;
+        }
+      }
+
+      // fixed module
+      _modules[_moduleCount - 8][8] = (!test);
+    };
+
+    var mapData = function(data, maskPattern) {
+
+      var inc = -1;
+      var row = _moduleCount - 1;
+      var bitIndex = 7;
+      var byteIndex = 0;
+      var maskFunc = QRUtil.getMaskFunction(maskPattern);
+
+      for (var col = _moduleCount - 1; col > 0; col -= 2) {
+
+        if (col == 6) col -= 1;
+
+        while (true) {
+
+          for (var c = 0; c < 2; c += 1) {
+
+            if (_modules[row][col - c] == null) {
+
+              var dark = false;
+
+              if (byteIndex < data.length) {
+                dark = ( ( (data[byteIndex] >>> bitIndex) & 1) == 1);
+              }
+
+              var mask = maskFunc(row, col - c);
+
+              if (mask) {
+                dark = !dark;
+              }
+
+              _modules[row][col - c] = dark;
+              bitIndex -= 1;
+
+              if (bitIndex == -1) {
+                byteIndex += 1;
+                bitIndex = 7;
+              }
+            }
+          }
+
+          row += inc;
+
+          if (row < 0 || _moduleCount <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    };
+
+    var createBytes = function(buffer, rsBlocks) {
+
+      var offset = 0;
+
+      var maxDcCount = 0;
+      var maxEcCount = 0;
+
+      var dcdata = new Array(rsBlocks.length);
+      var ecdata = new Array(rsBlocks.length);
+
+      for (var r = 0; r < rsBlocks.length; r += 1) {
+
+        var dcCount = rsBlocks[r].dataCount;
+        var ecCount = rsBlocks[r].totalCount - dcCount;
+
+        maxDcCount = Math.max(maxDcCount, dcCount);
+        maxEcCount = Math.max(maxEcCount, ecCount);
+
+        dcdata[r] = new Array(dcCount);
+
+        for (var i = 0; i < dcdata[r].length; i += 1) {
+          dcdata[r][i] = 0xff & buffer.getBuffer()[i + offset];
+        }
+        offset += dcCount;
+
+        var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+        var rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+        var modPoly = rawPoly.mod(rsPoly);
+        ecdata[r] = new Array(rsPoly.getLength() - 1);
+        for (var i = 0; i < ecdata[r].length; i += 1) {
+          var modIndex = i + modPoly.getLength() - ecdata[r].length;
+          ecdata[r][i] = (modIndex >= 0)? modPoly.getAt(modIndex) : 0;
+        }
+      }
+
+      var totalCodeCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalCodeCount += rsBlocks[i].totalCount;
+      }
+
+      var data = new Array(totalCodeCount);
+      var index = 0;
+
+      for (var i = 0; i < maxDcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < dcdata[r].length) {
+            data[index] = dcdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      for (var i = 0; i < maxEcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < ecdata[r].length) {
+            data[index] = ecdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      return data;
+    };
+
+    var createData = function(typeNumber, errorCorrectionLevel, dataList) {
+
+      var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectionLevel);
+
+      var buffer = qrBitBuffer();
+
+      for (var i = 0; i < dataList.length; i += 1) {
+        var data = dataList[i];
+        buffer.put(data.getMode(), 4);
+        buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+        data.write(buffer);
+      }
+
+      // calc num max data.
+      var totalDataCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalDataCount += rsBlocks[i].dataCount;
+      }
+
+      if (buffer.getLengthInBits() > totalDataCount * 8) {
+        throw 'code length overflow. ('
+          + buffer.getLengthInBits()
+          + '>'
+          + totalDataCount * 8
+          + ')';
+      }
+
+      // end code
+      if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+        buffer.put(0, 4);
+      }
+
+      // padding
+      while (buffer.getLengthInBits() % 8 != 0) {
+        buffer.putBit(false);
+      }
+
+      // padding
+      while (true) {
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD0, 8);
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD1, 8);
+      }
+
+      return createBytes(buffer, rsBlocks);
+    };
+
+    _this.addData = function(data, mode) {
+
+      mode = mode || 'Byte';
+
+      var newData = null;
+
+      switch(mode) {
+      case 'Numeric' :
+        newData = qrNumber(data);
+        break;
+      case 'Alphanumeric' :
+        newData = qrAlphaNum(data);
+        break;
+      case 'Byte' :
+        newData = qr8BitByte(data);
+        break;
+      case 'Kanji' :
+        newData = qrKanji(data);
+        break;
+      default :
+        throw 'mode:' + mode;
+      }
+
+      _dataList.push(newData);
+      _dataCache = null;
+    };
+
+    _this.isDark = function(row, col) {
+      if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+        throw row + ',' + col;
+      }
+      return _modules[row][col];
+    };
+
+    _this.getModuleCount = function() {
+      return _moduleCount;
+    };
+
+    _this.make = function() {
+      if (_typeNumber < 1) {
+        var typeNumber = 1;
+
+        for (; typeNumber < 40; typeNumber++) {
+          var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, _errorCorrectionLevel);
+          var buffer = qrBitBuffer();
+
+          for (var i = 0; i < _dataList.length; i++) {
+            var data = _dataList[i];
+            buffer.put(data.getMode(), 4);
+            buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+            data.write(buffer);
+          }
+
+          var totalDataCount = 0;
+          for (var i = 0; i < rsBlocks.length; i++) {
+            totalDataCount += rsBlocks[i].dataCount;
+          }
+
+          if (buffer.getLengthInBits() <= totalDataCount * 8) {
+            break;
+          }
+        }
+
+        _typeNumber = typeNumber;
+      }
+
+      makeImpl(false, getBestMaskPattern() );
+    };
+
+    _this.createTableTag = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var qrHtml = '';
+
+      qrHtml += '<table style="';
+      qrHtml += ' border-width: 0px; border-style: none;';
+      qrHtml += ' border-collapse: collapse;';
+      qrHtml += ' padding: 0px; margin: ' + margin + 'px;';
+      qrHtml += '">';
+      qrHtml += '<tbody>';
+
+      for (var r = 0; r < _this.getModuleCount(); r += 1) {
+
+        qrHtml += '<tr>';
+
+        for (var c = 0; c < _this.getModuleCount(); c += 1) {
+          qrHtml += '<td style="';
+          qrHtml += ' border-width: 0px; border-style: none;';
+          qrHtml += ' border-collapse: collapse;';
+          qrHtml += ' padding: 0px; margin: 0px;';
+          qrHtml += ' width: ' + cellSize + 'px;';
+          qrHtml += ' height: ' + cellSize + 'px;';
+          qrHtml += ' background-color: ';
+          qrHtml += _this.isDark(r, c)? '#000000' : '#ffffff';
+          qrHtml += ';';
+          qrHtml += '"/>';
+        }
+
+        qrHtml += '</tr>';
+      }
+
+      qrHtml += '</tbody>';
+      qrHtml += '</table>';
+
+      return qrHtml;
+    };
+
+    _this.createSvgTag = function(cellSize, margin, alt, title) {
+
+      var opts = {};
+      if (typeof arguments[0] == 'object') {
+        // Called by options.
+        opts = arguments[0];
+        // overwrite cellSize and margin.
+        cellSize = opts.cellSize;
+        margin = opts.margin;
+        alt = opts.alt;
+        title = opts.title;
+      }
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      // Compose alt property surrogate
+      alt = (typeof alt === 'string') ? {text: alt} : alt || {};
+      alt.text = alt.text || null;
+      alt.id = (alt.text) ? alt.id || 'qrcode-description' : null;
+
+      // Compose title property surrogate
+      title = (typeof title === 'string') ? {text: title} : title || {};
+      title.text = title.text || null;
+      title.id = (title.text) ? title.id || 'qrcode-title' : null;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var c, mc, r, mr, qrSvg='', rect;
+
+      rect = 'l' + cellSize + ',0 0,' + cellSize +
+        ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
+
+      qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+      qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
+      qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
+      qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+      qrSvg += (title.text || alt.text) ? ' role="img" aria-labelledby="' +
+          escapeXml([title.id, alt.id].join(' ').trim() ) + '"' : '';
+      qrSvg += '>';
+      qrSvg += (title.text) ? '<title id="' + escapeXml(title.id) + '">' +
+          escapeXml(title.text) + '</title>' : '';
+      qrSvg += (alt.text) ? '<description id="' + escapeXml(alt.id) + '">' +
+          escapeXml(alt.text) + '</description>' : '';
+      qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+      qrSvg += '<path d="';
+
+      for (r = 0; r < _this.getModuleCount(); r += 1) {
+        mr = r * cellSize + margin;
+        for (c = 0; c < _this.getModuleCount(); c += 1) {
+          if (_this.isDark(r, c) ) {
+            mc = c*cellSize+margin;
+            qrSvg += 'M' + mc + ',' + mr + rect;
+          }
+        }
+      }
+
+      qrSvg += '" stroke="transparent" fill="black"/>';
+      qrSvg += '</svg>';
+
+      return qrSvg;
+    };
+
+    _this.createDataURL = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      return createDataURL(size, size, function(x, y) {
+        if (min <= x && x < max && min <= y && y < max) {
+          var c = Math.floor( (x - min) / cellSize);
+          var r = Math.floor( (y - min) / cellSize);
+          return _this.isDark(r, c)? 0 : 1;
+        } else {
+          return 1;
+        }
+      } );
+    };
+
+    _this.createImgTag = function(cellSize, margin, alt) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+
+      var img = '';
+      img += '<img';
+      img += '\u0020src="';
+      img += _this.createDataURL(cellSize, margin);
+      img += '"';
+      img += '\u0020width="';
+      img += size;
+      img += '"';
+      img += '\u0020height="';
+      img += size;
+      img += '"';
+      if (alt) {
+        img += '\u0020alt="';
+        img += escapeXml(alt);
+        img += '"';
+      }
+      img += '/>';
+
+      return img;
+    };
+
+    var escapeXml = function(s) {
+      var escaped = '';
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charAt(i);
+        switch(c) {
+        case '<': escaped += '&lt;'; break;
+        case '>': escaped += '&gt;'; break;
+        case '&': escaped += '&amp;'; break;
+        case '"': escaped += '&quot;'; break;
+        default : escaped += c; break;
+        }
+      }
+      return escaped;
+    };
+
+    var _createHalfASCII = function(margin) {
+      var cellSize = 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r1, r2, p;
+
+      var blocks = {
+        '██': '█',
+        '█ ': '▀',
+        ' █': '▄',
+        '  ': ' '
+      };
+
+      var blocksLastLineNoMargin = {
+        '██': '▀',
+        '█ ': '▀',
+        ' █': ' ',
+        '  ': ' '
+      };
+
+      var ascii = '';
+      for (y = 0; y < size; y += 2) {
+        r1 = Math.floor((y - min) / cellSize);
+        r2 = Math.floor((y + 1 - min) / cellSize);
+        for (x = 0; x < size; x += 1) {
+          p = '█';
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+            p = ' ';
+          }
+
+          if (min <= x && x < max && min <= y+1 && y+1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+            p += ' ';
+          }
+          else {
+            p += '█';
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          ascii += (margin < 1 && y+1 >= max) ? blocksLastLineNoMargin[p] : blocks[p];
+        }
+
+        ascii += '\n';
+      }
+
+      if (size % 2 && margin > 0) {
+        return ascii.substring(0, ascii.length - size - 1) + Array(size+1).join('▀');
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.createASCII = function(cellSize, margin) {
+      cellSize = cellSize || 1;
+
+      if (cellSize < 2) {
+        return _createHalfASCII(margin);
+      }
+
+      cellSize -= 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r, p;
+
+      var white = Array(cellSize+1).join('██');
+      var black = Array(cellSize+1).join('  ');
+
+      var ascii = '';
+      var line = '';
+      for (y = 0; y < size; y += 1) {
+        r = Math.floor( (y - min) / cellSize);
+        line = '';
+        for (x = 0; x < size; x += 1) {
+          p = 1;
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+            p = 0;
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          line += p ? white : black;
+        }
+
+        for (r = 0; r < cellSize; r += 1) {
+          ascii += line + '\n';
+        }
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.renderTo2dContext = function(context, cellSize) {
+      cellSize = cellSize || 2;
+      var length = _this.getModuleCount();
+      for (var row = 0; row < length; row++) {
+        for (var col = 0; col < length; col++) {
+          context.fillStyle = _this.isDark(row, col) ? 'black' : 'white';
+          context.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrcode.stringToBytes
+  //---------------------------------------------------------------------
+
+  qrcode.stringToBytesFuncs = {
+    'default' : function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        bytes.push(c & 0xff);
+      }
+      return bytes;
+    }
+  };
+
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['default'];
+
+  //---------------------------------------------------------------------
+  // qrcode.createStringToBytes
+  //---------------------------------------------------------------------
+
+  /**
+   * @param unicodeData base64 string of byte array.
+   * [16bit Unicode],[16bit Bytes], ...
+   * @param numChars
+   */
+  qrcode.createStringToBytes = function(unicodeData, numChars) {
+
+    // create conversion map.
+
+    var unicodeMap = function() {
+
+      var bin = base64DecodeInputStream(unicodeData);
+      var read = function() {
+        var b = bin.read();
+        if (b == -1) throw 'eof';
+        return b;
+      };
+
+      var count = 0;
+      var unicodeMap = {};
+      while (true) {
+        var b0 = bin.read();
+        if (b0 == -1) break;
+        var b1 = read();
+        var b2 = read();
+        var b3 = read();
+        var k = String.fromCharCode( (b0 << 8) | b1);
+        var v = (b2 << 8) | b3;
+        unicodeMap[k] = v;
+        count += 1;
+      }
+      if (count != numChars) {
+        throw count + ' != ' + numChars;
+      }
+
+      return unicodeMap;
+    }();
+
+    var unknownChar = '?'.charCodeAt(0);
+
+    return function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        if (c < 128) {
+          bytes.push(c);
+        } else {
+          var b = unicodeMap[s.charAt(i)];
+          if (typeof b == 'number') {
+            if ( (b & 0xff) == b) {
+              // 1byte
+              bytes.push(b);
+            } else {
+              // 2bytes
+              bytes.push(b >>> 8);
+              bytes.push(b & 0xff);
+            }
+          } else {
+            bytes.push(unknownChar);
+          }
+        }
+      }
+      return bytes;
+    };
+  };
+
+  //---------------------------------------------------------------------
+  // QRMode
+  //---------------------------------------------------------------------
+
+  var QRMode = {
+    MODE_NUMBER :    1 << 0,
+    MODE_ALPHA_NUM : 1 << 1,
+    MODE_8BIT_BYTE : 1 << 2,
+    MODE_KANJI :     1 << 3
+  };
+
+  //---------------------------------------------------------------------
+  // QRErrorCorrectionLevel
+  //---------------------------------------------------------------------
+
+  var QRErrorCorrectionLevel = {
+    L : 1,
+    M : 0,
+    Q : 3,
+    H : 2
+  };
+
+  //---------------------------------------------------------------------
+  // QRMaskPattern
+  //---------------------------------------------------------------------
+
+  var QRMaskPattern = {
+    PATTERN000 : 0,
+    PATTERN001 : 1,
+    PATTERN010 : 2,
+    PATTERN011 : 3,
+    PATTERN100 : 4,
+    PATTERN101 : 5,
+    PATTERN110 : 6,
+    PATTERN111 : 7
+  };
+
+  //---------------------------------------------------------------------
+  // QRUtil
+  //---------------------------------------------------------------------
+
+  var QRUtil = function() {
+
+    var PATTERN_POSITION_TABLE = [
+      [],
+      [6, 18],
+      [6, 22],
+      [6, 26],
+      [6, 30],
+      [6, 34],
+      [6, 22, 38],
+      [6, 24, 42],
+      [6, 26, 46],
+      [6, 28, 50],
+      [6, 30, 54],
+      [6, 32, 58],
+      [6, 34, 62],
+      [6, 26, 46, 66],
+      [6, 26, 48, 70],
+      [6, 26, 50, 74],
+      [6, 30, 54, 78],
+      [6, 30, 56, 82],
+      [6, 30, 58, 86],
+      [6, 34, 62, 90],
+      [6, 28, 50, 72, 94],
+      [6, 26, 50, 74, 98],
+      [6, 30, 54, 78, 102],
+      [6, 28, 54, 80, 106],
+      [6, 32, 58, 84, 110],
+      [6, 30, 58, 86, 114],
+      [6, 34, 62, 90, 118],
+      [6, 26, 50, 74, 98, 122],
+      [6, 30, 54, 78, 102, 126],
+      [6, 26, 52, 78, 104, 130],
+      [6, 30, 56, 82, 108, 134],
+      [6, 34, 60, 86, 112, 138],
+      [6, 30, 58, 86, 114, 142],
+      [6, 34, 62, 90, 118, 146],
+      [6, 30, 54, 78, 102, 126, 150],
+      [6, 24, 50, 76, 102, 128, 154],
+      [6, 28, 54, 80, 106, 132, 158],
+      [6, 32, 58, 84, 110, 136, 162],
+      [6, 26, 54, 82, 110, 138, 166],
+      [6, 30, 58, 86, 114, 142, 170]
+    ];
+    var G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+    var G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+    var G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+
+    var _this = {};
+
+    var getBCHDigit = function(data) {
+      var digit = 0;
+      while (data != 0) {
+        digit += 1;
+        data >>>= 1;
+      }
+      return digit;
+    };
+
+    _this.getBCHTypeInfo = function(data) {
+      var d = data << 10;
+      while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+        d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15) ) );
+      }
+      return ( (data << 10) | d) ^ G15_MASK;
+    };
+
+    _this.getBCHTypeNumber = function(data) {
+      var d = data << 12;
+      while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+        d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18) ) );
+      }
+      return (data << 12) | d;
+    };
+
+    _this.getPatternPosition = function(typeNumber) {
+      return PATTERN_POSITION_TABLE[typeNumber - 1];
+    };
+
+    _this.getMaskFunction = function(maskPattern) {
+
+      switch (maskPattern) {
+
+      case QRMaskPattern.PATTERN000 :
+        return function(i, j) { return (i + j) % 2 == 0; };
+      case QRMaskPattern.PATTERN001 :
+        return function(i, j) { return i % 2 == 0; };
+      case QRMaskPattern.PATTERN010 :
+        return function(i, j) { return j % 3 == 0; };
+      case QRMaskPattern.PATTERN011 :
+        return function(i, j) { return (i + j) % 3 == 0; };
+      case QRMaskPattern.PATTERN100 :
+        return function(i, j) { return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 == 0; };
+      case QRMaskPattern.PATTERN101 :
+        return function(i, j) { return (i * j) % 2 + (i * j) % 3 == 0; };
+      case QRMaskPattern.PATTERN110 :
+        return function(i, j) { return ( (i * j) % 2 + (i * j) % 3) % 2 == 0; };
+      case QRMaskPattern.PATTERN111 :
+        return function(i, j) { return ( (i * j) % 3 + (i + j) % 2) % 2 == 0; };
+
+      default :
+        throw 'bad maskPattern:' + maskPattern;
+      }
+    };
+
+    _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+      var a = qrPolynomial([1], 0);
+      for (var i = 0; i < errorCorrectLength; i += 1) {
+        a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0) );
+      }
+      return a;
+    };
+
+    _this.getLengthInBits = function(mode, type) {
+
+      if (1 <= type && type < 10) {
+
+        // 1 - 9
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 10;
+        case QRMode.MODE_ALPHA_NUM : return 9;
+        case QRMode.MODE_8BIT_BYTE : return 8;
+        case QRMode.MODE_KANJI     : return 8;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 27) {
+
+        // 10 - 26
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 12;
+        case QRMode.MODE_ALPHA_NUM : return 11;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 10;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 41) {
+
+        // 27 - 40
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 14;
+        case QRMode.MODE_ALPHA_NUM : return 13;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 12;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else {
+        throw 'type:' + type;
+      }
+    };
+
+    _this.getLostPoint = function(qrcode) {
+
+      var moduleCount = qrcode.getModuleCount();
+
+      var lostPoint = 0;
+
+      // LEVEL1
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount; col += 1) {
+
+          var sameCount = 0;
+          var dark = qrcode.isDark(row, col);
+
+          for (var r = -1; r <= 1; r += 1) {
+
+            if (row + r < 0 || moduleCount <= row + r) {
+              continue;
+            }
+
+            for (var c = -1; c <= 1; c += 1) {
+
+              if (col + c < 0 || moduleCount <= col + c) {
+                continue;
+              }
+
+              if (r == 0 && c == 0) {
+                continue;
+              }
+
+              if (dark == qrcode.isDark(row + r, col + c) ) {
+                sameCount += 1;
+              }
+            }
+          }
+
+          if (sameCount > 5) {
+            lostPoint += (3 + sameCount - 5);
+          }
+        }
+      };
+
+      // LEVEL2
+
+      for (var row = 0; row < moduleCount - 1; row += 1) {
+        for (var col = 0; col < moduleCount - 1; col += 1) {
+          var count = 0;
+          if (qrcode.isDark(row, col) ) count += 1;
+          if (qrcode.isDark(row + 1, col) ) count += 1;
+          if (qrcode.isDark(row, col + 1) ) count += 1;
+          if (qrcode.isDark(row + 1, col + 1) ) count += 1;
+          if (count == 0 || count == 4) {
+            lostPoint += 3;
+          }
+        }
+      }
+
+      // LEVEL3
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount - 6; col += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row, col + 1)
+              &&  qrcode.isDark(row, col + 2)
+              &&  qrcode.isDark(row, col + 3)
+              &&  qrcode.isDark(row, col + 4)
+              && !qrcode.isDark(row, col + 5)
+              &&  qrcode.isDark(row, col + 6) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount - 6; row += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row + 1, col)
+              &&  qrcode.isDark(row + 2, col)
+              &&  qrcode.isDark(row + 3, col)
+              &&  qrcode.isDark(row + 4, col)
+              && !qrcode.isDark(row + 5, col)
+              &&  qrcode.isDark(row + 6, col) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      // LEVEL4
+
+      var darkCount = 0;
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount; row += 1) {
+          if (qrcode.isDark(row, col) ) {
+            darkCount += 1;
+          }
+        }
+      }
+
+      var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+      lostPoint += ratio * 10;
+
+      return lostPoint;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // QRMath
+  //---------------------------------------------------------------------
+
+  var QRMath = function() {
+
+    var EXP_TABLE = new Array(256);
+    var LOG_TABLE = new Array(256);
+
+    // initialize tables
+    for (var i = 0; i < 8; i += 1) {
+      EXP_TABLE[i] = 1 << i;
+    }
+    for (var i = 8; i < 256; i += 1) {
+      EXP_TABLE[i] = EXP_TABLE[i - 4]
+        ^ EXP_TABLE[i - 5]
+        ^ EXP_TABLE[i - 6]
+        ^ EXP_TABLE[i - 8];
+    }
+    for (var i = 0; i < 255; i += 1) {
+      LOG_TABLE[EXP_TABLE[i] ] = i;
+    }
+
+    var _this = {};
+
+    _this.glog = function(n) {
+
+      if (n < 1) {
+        throw 'glog(' + n + ')';
+      }
+
+      return LOG_TABLE[n];
+    };
+
+    _this.gexp = function(n) {
+
+      while (n < 0) {
+        n += 255;
+      }
+
+      while (n >= 256) {
+        n -= 255;
+      }
+
+      return EXP_TABLE[n];
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrPolynomial
+  //---------------------------------------------------------------------
+
+  function qrPolynomial(num, shift) {
+
+    if (typeof num.length == 'undefined') {
+      throw num.length + '/' + shift;
+    }
+
+    var _num = function() {
+      var offset = 0;
+      while (offset < num.length && num[offset] == 0) {
+        offset += 1;
+      }
+      var _num = new Array(num.length - offset + shift);
+      for (var i = 0; i < num.length - offset; i += 1) {
+        _num[i] = num[i + offset];
+      }
+      return _num;
+    }();
+
+    var _this = {};
+
+    _this.getAt = function(index) {
+      return _num[index];
+    };
+
+    _this.getLength = function() {
+      return _num.length;
+    };
+
+    _this.multiply = function(e) {
+
+      var num = new Array(_this.getLength() + e.getLength() - 1);
+
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        for (var j = 0; j < e.getLength(); j += 1) {
+          num[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i) ) + QRMath.glog(e.getAt(j) ) );
+        }
+      }
+
+      return qrPolynomial(num, 0);
+    };
+
+    _this.mod = function(e) {
+
+      if (_this.getLength() - e.getLength() < 0) {
+        return _this;
+      }
+
+      var ratio = QRMath.glog(_this.getAt(0) ) - QRMath.glog(e.getAt(0) );
+
+      var num = new Array(_this.getLength() );
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        num[i] = _this.getAt(i);
+      }
+
+      for (var i = 0; i < e.getLength(); i += 1) {
+        num[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i) ) + ratio);
+      }
+
+      // recursive call
+      return qrPolynomial(num, 0).mod(e);
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // QRRSBlock
+  //---------------------------------------------------------------------
+
+  var QRRSBlock = function() {
+
+    var RS_BLOCK_TABLE = [
+
+      // L
+      // M
+      // Q
+      // H
+
+      // 1
+      [1, 26, 19],
+      [1, 26, 16],
+      [1, 26, 13],
+      [1, 26, 9],
+
+      // 2
+      [1, 44, 34],
+      [1, 44, 28],
+      [1, 44, 22],
+      [1, 44, 16],
+
+      // 3
+      [1, 70, 55],
+      [1, 70, 44],
+      [2, 35, 17],
+      [2, 35, 13],
+
+      // 4
+      [1, 100, 80],
+      [2, 50, 32],
+      [2, 50, 24],
+      [4, 25, 9],
+
+      // 5
+      [1, 134, 108],
+      [2, 67, 43],
+      [2, 33, 15, 2, 34, 16],
+      [2, 33, 11, 2, 34, 12],
+
+      // 6
+      [2, 86, 68],
+      [4, 43, 27],
+      [4, 43, 19],
+      [4, 43, 15],
+
+      // 7
+      [2, 98, 78],
+      [4, 49, 31],
+      [2, 32, 14, 4, 33, 15],
+      [4, 39, 13, 1, 40, 14],
+
+      // 8
+      [2, 121, 97],
+      [2, 60, 38, 2, 61, 39],
+      [4, 40, 18, 2, 41, 19],
+      [4, 40, 14, 2, 41, 15],
+
+      // 9
+      [2, 146, 116],
+      [3, 58, 36, 2, 59, 37],
+      [4, 36, 16, 4, 37, 17],
+      [4, 36, 12, 4, 37, 13],
+
+      // 10
+      [2, 86, 68, 2, 87, 69],
+      [4, 69, 43, 1, 70, 44],
+      [6, 43, 19, 2, 44, 20],
+      [6, 43, 15, 2, 44, 16],
+
+      // 11
+      [4, 101, 81],
+      [1, 80, 50, 4, 81, 51],
+      [4, 50, 22, 4, 51, 23],
+      [3, 36, 12, 8, 37, 13],
+
+      // 12
+      [2, 116, 92, 2, 117, 93],
+      [6, 58, 36, 2, 59, 37],
+      [4, 46, 20, 6, 47, 21],
+      [7, 42, 14, 4, 43, 15],
+
+      // 13
+      [4, 133, 107],
+      [8, 59, 37, 1, 60, 38],
+      [8, 44, 20, 4, 45, 21],
+      [12, 33, 11, 4, 34, 12],
+
+      // 14
+      [3, 145, 115, 1, 146, 116],
+      [4, 64, 40, 5, 65, 41],
+      [11, 36, 16, 5, 37, 17],
+      [11, 36, 12, 5, 37, 13],
+
+      // 15
+      [5, 109, 87, 1, 110, 88],
+      [5, 65, 41, 5, 66, 42],
+      [5, 54, 24, 7, 55, 25],
+      [11, 36, 12, 7, 37, 13],
+
+      // 16
+      [5, 122, 98, 1, 123, 99],
+      [7, 73, 45, 3, 74, 46],
+      [15, 43, 19, 2, 44, 20],
+      [3, 45, 15, 13, 46, 16],
+
+      // 17
+      [1, 135, 107, 5, 136, 108],
+      [10, 74, 46, 1, 75, 47],
+      [1, 50, 22, 15, 51, 23],
+      [2, 42, 14, 17, 43, 15],
+
+      // 18
+      [5, 150, 120, 1, 151, 121],
+      [9, 69, 43, 4, 70, 44],
+      [17, 50, 22, 1, 51, 23],
+      [2, 42, 14, 19, 43, 15],
+
+      // 19
+      [3, 141, 113, 4, 142, 114],
+      [3, 70, 44, 11, 71, 45],
+      [17, 47, 21, 4, 48, 22],
+      [9, 39, 13, 16, 40, 14],
+
+      // 20
+      [3, 135, 107, 5, 136, 108],
+      [3, 67, 41, 13, 68, 42],
+      [15, 54, 24, 5, 55, 25],
+      [15, 43, 15, 10, 44, 16],
+
+      // 21
+      [4, 144, 116, 4, 145, 117],
+      [17, 68, 42],
+      [17, 50, 22, 6, 51, 23],
+      [19, 46, 16, 6, 47, 17],
+
+      // 22
+      [2, 139, 111, 7, 140, 112],
+      [17, 74, 46],
+      [7, 54, 24, 16, 55, 25],
+      [34, 37, 13],
+
+      // 23
+      [4, 151, 121, 5, 152, 122],
+      [4, 75, 47, 14, 76, 48],
+      [11, 54, 24, 14, 55, 25],
+      [16, 45, 15, 14, 46, 16],
+
+      // 24
+      [6, 147, 117, 4, 148, 118],
+      [6, 73, 45, 14, 74, 46],
+      [11, 54, 24, 16, 55, 25],
+      [30, 46, 16, 2, 47, 17],
+
+      // 25
+      [8, 132, 106, 4, 133, 107],
+      [8, 75, 47, 13, 76, 48],
+      [7, 54, 24, 22, 55, 25],
+      [22, 45, 15, 13, 46, 16],
+
+      // 26
+      [10, 142, 114, 2, 143, 115],
+      [19, 74, 46, 4, 75, 47],
+      [28, 50, 22, 6, 51, 23],
+      [33, 46, 16, 4, 47, 17],
+
+      // 27
+      [8, 152, 122, 4, 153, 123],
+      [22, 73, 45, 3, 74, 46],
+      [8, 53, 23, 26, 54, 24],
+      [12, 45, 15, 28, 46, 16],
+
+      // 28
+      [3, 147, 117, 10, 148, 118],
+      [3, 73, 45, 23, 74, 46],
+      [4, 54, 24, 31, 55, 25],
+      [11, 45, 15, 31, 46, 16],
+
+      // 29
+      [7, 146, 116, 7, 147, 117],
+      [21, 73, 45, 7, 74, 46],
+      [1, 53, 23, 37, 54, 24],
+      [19, 45, 15, 26, 46, 16],
+
+      // 30
+      [5, 145, 115, 10, 146, 116],
+      [19, 75, 47, 10, 76, 48],
+      [15, 54, 24, 25, 55, 25],
+      [23, 45, 15, 25, 46, 16],
+
+      // 31
+      [13, 145, 115, 3, 146, 116],
+      [2, 74, 46, 29, 75, 47],
+      [42, 54, 24, 1, 55, 25],
+      [23, 45, 15, 28, 46, 16],
+
+      // 32
+      [17, 145, 115],
+      [10, 74, 46, 23, 75, 47],
+      [10, 54, 24, 35, 55, 25],
+      [19, 45, 15, 35, 46, 16],
+
+      // 33
+      [17, 145, 115, 1, 146, 116],
+      [14, 74, 46, 21, 75, 47],
+      [29, 54, 24, 19, 55, 25],
+      [11, 45, 15, 46, 46, 16],
+
+      // 34
+      [13, 145, 115, 6, 146, 116],
+      [14, 74, 46, 23, 75, 47],
+      [44, 54, 24, 7, 55, 25],
+      [59, 46, 16, 1, 47, 17],
+
+      // 35
+      [12, 151, 121, 7, 152, 122],
+      [12, 75, 47, 26, 76, 48],
+      [39, 54, 24, 14, 55, 25],
+      [22, 45, 15, 41, 46, 16],
+
+      // 36
+      [6, 151, 121, 14, 152, 122],
+      [6, 75, 47, 34, 76, 48],
+      [46, 54, 24, 10, 55, 25],
+      [2, 45, 15, 64, 46, 16],
+
+      // 37
+      [17, 152, 122, 4, 153, 123],
+      [29, 74, 46, 14, 75, 47],
+      [49, 54, 24, 10, 55, 25],
+      [24, 45, 15, 46, 46, 16],
+
+      // 38
+      [4, 152, 122, 18, 153, 123],
+      [13, 74, 46, 32, 75, 47],
+      [48, 54, 24, 14, 55, 25],
+      [42, 45, 15, 32, 46, 16],
+
+      // 39
+      [20, 147, 117, 4, 148, 118],
+      [40, 75, 47, 7, 76, 48],
+      [43, 54, 24, 22, 55, 25],
+      [10, 45, 15, 67, 46, 16],
+
+      // 40
+      [19, 148, 118, 6, 149, 119],
+      [18, 75, 47, 31, 76, 48],
+      [34, 54, 24, 34, 55, 25],
+      [20, 45, 15, 61, 46, 16]
+    ];
+
+    var qrRSBlock = function(totalCount, dataCount) {
+      var _this = {};
+      _this.totalCount = totalCount;
+      _this.dataCount = dataCount;
+      return _this;
+    };
+
+    var _this = {};
+
+    var getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+
+      switch(errorCorrectionLevel) {
+      case QRErrorCorrectionLevel.L :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+      case QRErrorCorrectionLevel.M :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+      case QRErrorCorrectionLevel.Q :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+      case QRErrorCorrectionLevel.H :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+      default :
+        return undefined;
+      }
+    };
+
+    _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+
+      var rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+
+      if (typeof rsBlock == 'undefined') {
+        throw 'bad rs block @ typeNumber:' + typeNumber +
+            '/errorCorrectionLevel:' + errorCorrectionLevel;
+      }
+
+      var length = rsBlock.length / 3;
+
+      var list = [];
+
+      for (var i = 0; i < length; i += 1) {
+
+        var count = rsBlock[i * 3 + 0];
+        var totalCount = rsBlock[i * 3 + 1];
+        var dataCount = rsBlock[i * 3 + 2];
+
+        for (var j = 0; j < count; j += 1) {
+          list.push(qrRSBlock(totalCount, dataCount) );
+        }
+      }
+
+      return list;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrBitBuffer
+  //---------------------------------------------------------------------
+
+  var qrBitBuffer = function() {
+
+    var _buffer = [];
+    var _length = 0;
+
+    var _this = {};
+
+    _this.getBuffer = function() {
+      return _buffer;
+    };
+
+    _this.getAt = function(index) {
+      var bufIndex = Math.floor(index / 8);
+      return ( (_buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+    };
+
+    _this.put = function(num, length) {
+      for (var i = 0; i < length; i += 1) {
+        _this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+      }
+    };
+
+    _this.getLengthInBits = function() {
+      return _length;
+    };
+
+    _this.putBit = function(bit) {
+
+      var bufIndex = Math.floor(_length / 8);
+      if (_buffer.length <= bufIndex) {
+        _buffer.push(0);
+      }
+
+      if (bit) {
+        _buffer[bufIndex] |= (0x80 >>> (_length % 8) );
+      }
+
+      _length += 1;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrNumber
+  //---------------------------------------------------------------------
+
+  var qrNumber = function(data) {
+
+    var _mode = QRMode.MODE_NUMBER;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _data;
+
+      var i = 0;
+
+      while (i + 2 < data.length) {
+        buffer.put(strToNum(data.substring(i, i + 3) ), 10);
+        i += 3;
+      }
+
+      if (i < data.length) {
+        if (data.length - i == 1) {
+          buffer.put(strToNum(data.substring(i, i + 1) ), 4);
+        } else if (data.length - i == 2) {
+          buffer.put(strToNum(data.substring(i, i + 2) ), 7);
+        }
+      }
+    };
+
+    var strToNum = function(s) {
+      var num = 0;
+      for (var i = 0; i < s.length; i += 1) {
+        num = num * 10 + chatToNum(s.charAt(i) );
+      }
+      return num;
+    };
+
+    var chatToNum = function(c) {
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      }
+      throw 'illegal char :' + c;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrAlphaNum
+  //---------------------------------------------------------------------
+
+  var qrAlphaNum = function(data) {
+
+    var _mode = QRMode.MODE_ALPHA_NUM;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var s = _data;
+
+      var i = 0;
+
+      while (i + 1 < s.length) {
+        buffer.put(
+          getCode(s.charAt(i) ) * 45 +
+          getCode(s.charAt(i + 1) ), 11);
+        i += 2;
+      }
+
+      if (i < s.length) {
+        buffer.put(getCode(s.charAt(i) ), 6);
+      }
+    };
+
+    var getCode = function(c) {
+
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      } else if ('A' <= c && c <= 'Z') {
+        return c.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
+      } else {
+        switch (c) {
+        case ' ' : return 36;
+        case '$' : return 37;
+        case '%' : return 38;
+        case '*' : return 39;
+        case '+' : return 40;
+        case '-' : return 41;
+        case '.' : return 42;
+        case '/' : return 43;
+        case ':' : return 44;
+        default :
+          throw 'illegal char :' + c;
+        }
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qr8BitByte
+  //---------------------------------------------------------------------
+
+  var qr8BitByte = function(data) {
+
+    var _mode = QRMode.MODE_8BIT_BYTE;
+    var _data = data;
+    var _bytes = qrcode.stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _bytes.length;
+    };
+
+    _this.write = function(buffer) {
+      for (var i = 0; i < _bytes.length; i += 1) {
+        buffer.put(_bytes[i], 8);
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrKanji
+  //---------------------------------------------------------------------
+
+  var qrKanji = function(data) {
+
+    var _mode = QRMode.MODE_KANJI;
+    var _data = data;
+
+    var stringToBytes = qrcode.stringToBytesFuncs['SJIS'];
+    if (!stringToBytes) {
+      throw 'sjis not supported.';
+    }
+    !function(c, code) {
+      // self test for sjis support.
+      var test = stringToBytes(c);
+      if (test.length != 2 || ( (test[0] << 8) | test[1]) != code) {
+        throw 'sjis not supported.';
+      }
+    }('\u53cb', 0x9746);
+
+    var _bytes = stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return ~~(_bytes.length / 2);
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _bytes;
+
+      var i = 0;
+
+      while (i + 1 < data.length) {
+
+        var c = ( (0xff & data[i]) << 8) | (0xff & data[i + 1]);
+
+        if (0x8140 <= c && c <= 0x9FFC) {
+          c -= 0x8140;
+        } else if (0xE040 <= c && c <= 0xEBBF) {
+          c -= 0xC140;
+        } else {
+          throw 'illegal char at ' + (i + 1) + '/' + c;
+        }
+
+        c = ( (c >>> 8) & 0xff) * 0xC0 + (c & 0xff);
+
+        buffer.put(c, 13);
+
+        i += 2;
+      }
+
+      if (i < data.length) {
+        throw 'illegal char at ' + (i + 1);
+      }
+    };
+
+    return _this;
+  };
+
+  //=====================================================================
+  // GIF Support etc.
+  //
+
+  //---------------------------------------------------------------------
+  // byteArrayOutputStream
+  //---------------------------------------------------------------------
+
+  var byteArrayOutputStream = function() {
+
+    var _bytes = [];
+
+    var _this = {};
+
+    _this.writeByte = function(b) {
+      _bytes.push(b & 0xff);
+    };
+
+    _this.writeShort = function(i) {
+      _this.writeByte(i);
+      _this.writeByte(i >>> 8);
+    };
+
+    _this.writeBytes = function(b, off, len) {
+      off = off || 0;
+      len = len || b.length;
+      for (var i = 0; i < len; i += 1) {
+        _this.writeByte(b[i + off]);
+      }
+    };
+
+    _this.writeString = function(s) {
+      for (var i = 0; i < s.length; i += 1) {
+        _this.writeByte(s.charCodeAt(i) );
+      }
+    };
+
+    _this.toByteArray = function() {
+      return _bytes;
+    };
+
+    _this.toString = function() {
+      var s = '';
+      s += '[';
+      for (var i = 0; i < _bytes.length; i += 1) {
+        if (i > 0) {
+          s += ',';
+        }
+        s += _bytes[i];
+      }
+      s += ']';
+      return s;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64EncodeOutputStream
+  //---------------------------------------------------------------------
+
+  var base64EncodeOutputStream = function() {
+
+    var _buffer = 0;
+    var _buflen = 0;
+    var _length = 0;
+    var _base64 = '';
+
+    var _this = {};
+
+    var writeEncoded = function(b) {
+      _base64 += String.fromCharCode(encode(b & 0x3f) );
+    };
+
+    var encode = function(n) {
+      if (n < 0) {
+        // error.
+      } else if (n < 26) {
+        return 0x41 + n;
+      } else if (n < 52) {
+        return 0x61 + (n - 26);
+      } else if (n < 62) {
+        return 0x30 + (n - 52);
+      } else if (n == 62) {
+        return 0x2b;
+      } else if (n == 63) {
+        return 0x2f;
+      }
+      throw 'n:' + n;
+    };
+
+    _this.writeByte = function(n) {
+
+      _buffer = (_buffer << 8) | (n & 0xff);
+      _buflen += 8;
+      _length += 1;
+
+      while (_buflen >= 6) {
+        writeEncoded(_buffer >>> (_buflen - 6) );
+        _buflen -= 6;
+      }
+    };
+
+    _this.flush = function() {
+
+      if (_buflen > 0) {
+        writeEncoded(_buffer << (6 - _buflen) );
+        _buffer = 0;
+        _buflen = 0;
+      }
+
+      if (_length % 3 != 0) {
+        // padding
+        var padlen = 3 - _length % 3;
+        for (var i = 0; i < padlen; i += 1) {
+          _base64 += '=';
+        }
+      }
+    };
+
+    _this.toString = function() {
+      return _base64;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64DecodeInputStream
+  //---------------------------------------------------------------------
+
+  var base64DecodeInputStream = function(str) {
+
+    var _str = str;
+    var _pos = 0;
+    var _buffer = 0;
+    var _buflen = 0;
+
+    var _this = {};
+
+    _this.read = function() {
+
+      while (_buflen < 8) {
+
+        if (_pos >= _str.length) {
+          if (_buflen == 0) {
+            return -1;
+          }
+          throw 'unexpected end of file./' + _buflen;
+        }
+
+        var c = _str.charAt(_pos);
+        _pos += 1;
+
+        if (c == '=') {
+          _buflen = 0;
+          return -1;
+        } else if (c.match(/^\s$/) ) {
+          // ignore if whitespace.
+          continue;
+        }
+
+        _buffer = (_buffer << 6) | decode(c.charCodeAt(0) );
+        _buflen += 6;
+      }
+
+      var n = (_buffer >>> (_buflen - 8) ) & 0xff;
+      _buflen -= 8;
+      return n;
+    };
+
+    var decode = function(c) {
+      if (0x41 <= c && c <= 0x5a) {
+        return c - 0x41;
+      } else if (0x61 <= c && c <= 0x7a) {
+        return c - 0x61 + 26;
+      } else if (0x30 <= c && c <= 0x39) {
+        return c - 0x30 + 52;
+      } else if (c == 0x2b) {
+        return 62;
+      } else if (c == 0x2f) {
+        return 63;
+      } else {
+        throw 'c:' + c;
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // gifImage (B/W)
+  //---------------------------------------------------------------------
+
+  var gifImage = function(width, height) {
+
+    var _width = width;
+    var _height = height;
+    var _data = new Array(width * height);
+
+    var _this = {};
+
+    _this.setPixel = function(x, y, pixel) {
+      _data[y * _width + x] = pixel;
+    };
+
+    _this.write = function(out) {
+
+      //---------------------------------
+      // GIF Signature
+
+      out.writeString('GIF87a');
+
+      //---------------------------------
+      // Screen Descriptor
+
+      out.writeShort(_width);
+      out.writeShort(_height);
+
+      out.writeByte(0x80); // 2bit
+      out.writeByte(0);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Global Color Map
+
+      // black
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+
+      // white
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+
+      //---------------------------------
+      // Image Descriptor
+
+      out.writeString(',');
+      out.writeShort(0);
+      out.writeShort(0);
+      out.writeShort(_width);
+      out.writeShort(_height);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Local Color Map
+
+      //---------------------------------
+      // Raster Data
+
+      var lzwMinCodeSize = 2;
+      var raster = getLZWRaster(lzwMinCodeSize);
+
+      out.writeByte(lzwMinCodeSize);
+
+      var offset = 0;
+
+      while (raster.length - offset > 255) {
+        out.writeByte(255);
+        out.writeBytes(raster, offset, 255);
+        offset += 255;
+      }
+
+      out.writeByte(raster.length - offset);
+      out.writeBytes(raster, offset, raster.length - offset);
+      out.writeByte(0x00);
+
+      //---------------------------------
+      // GIF Terminator
+      out.writeString(';');
+    };
+
+    var bitOutputStream = function(out) {
+
+      var _out = out;
+      var _bitLength = 0;
+      var _bitBuffer = 0;
+
+      var _this = {};
+
+      _this.write = function(data, length) {
+
+        if ( (data >>> length) != 0) {
+          throw 'length over';
+        }
+
+        while (_bitLength + length >= 8) {
+          _out.writeByte(0xff & ( (data << _bitLength) | _bitBuffer) );
+          length -= (8 - _bitLength);
+          data >>>= (8 - _bitLength);
+          _bitBuffer = 0;
+          _bitLength = 0;
+        }
+
+        _bitBuffer = (data << _bitLength) | _bitBuffer;
+        _bitLength = _bitLength + length;
+      };
+
+      _this.flush = function() {
+        if (_bitLength > 0) {
+          _out.writeByte(_bitBuffer);
+        }
+      };
+
+      return _this;
+    };
+
+    var getLZWRaster = function(lzwMinCodeSize) {
+
+      var clearCode = 1 << lzwMinCodeSize;
+      var endCode = (1 << lzwMinCodeSize) + 1;
+      var bitLength = lzwMinCodeSize + 1;
+
+      // Setup LZWTable
+      var table = lzwTable();
+
+      for (var i = 0; i < clearCode; i += 1) {
+        table.add(String.fromCharCode(i) );
+      }
+      table.add(String.fromCharCode(clearCode) );
+      table.add(String.fromCharCode(endCode) );
+
+      var byteOut = byteArrayOutputStream();
+      var bitOut = bitOutputStream(byteOut);
+
+      // clear code
+      bitOut.write(clearCode, bitLength);
+
+      var dataIndex = 0;
+
+      var s = String.fromCharCode(_data[dataIndex]);
+      dataIndex += 1;
+
+      while (dataIndex < _data.length) {
+
+        var c = String.fromCharCode(_data[dataIndex]);
+        dataIndex += 1;
+
+        if (table.contains(s + c) ) {
+
+          s = s + c;
+
+        } else {
+
+          bitOut.write(table.indexOf(s), bitLength);
+
+          if (table.size() < 0xfff) {
+
+            if (table.size() == (1 << bitLength) ) {
+              bitLength += 1;
+            }
+
+            table.add(s + c);
+          }
+
+          s = c;
+        }
+      }
+
+      bitOut.write(table.indexOf(s), bitLength);
+
+      // end code
+      bitOut.write(endCode, bitLength);
+
+      bitOut.flush();
+
+      return byteOut.toByteArray();
+    };
+
+    var lzwTable = function() {
+
+      var _map = {};
+      var _size = 0;
+
+      var _this = {};
+
+      _this.add = function(key) {
+        if (_this.contains(key) ) {
+          throw 'dup key:' + key;
+        }
+        _map[key] = _size;
+        _size += 1;
+      };
+
+      _this.size = function() {
+        return _size;
+      };
+
+      _this.indexOf = function(key) {
+        return _map[key];
+      };
+
+      _this.contains = function(key) {
+        return typeof _map[key] != 'undefined';
+      };
+
+      return _this;
+    };
+
+    return _this;
+  };
+
+  var createDataURL = function(width, height, getPixel) {
+    var gif = gifImage(width, height);
+    for (var y = 0; y < height; y += 1) {
+      for (var x = 0; x < width; x += 1) {
+        gif.setPixel(x, y, getPixel(x, y) );
+      }
+    }
+
+    var b = byteArrayOutputStream();
+    gif.write(b);
+
+    var base64 = base64EncodeOutputStream();
+    var bytes = b.toByteArray();
+    for (var i = 0; i < bytes.length; i += 1) {
+      base64.writeByte(bytes[i]);
+    }
+    base64.flush();
+
+    return 'data:image/gif;base64,' + base64;
+  };
+
+  //---------------------------------------------------------------------
+  // returns qrcode function.
+
+  return qrcode;
+}();
+
+// multibyte support
+!function() {
+
+  qrcode.stringToBytesFuncs['UTF-8'] = function(s) {
+    // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+    function toUTF8Array(str) {
+      var utf8 = [];
+      for (var i=0; i < str.length; i++) {
+        var charcode = str.charCodeAt(i);
+        if (charcode < 0x80) utf8.push(charcode);
+        else if (charcode < 0x800) {
+          utf8.push(0xc0 | (charcode >> 6),
+              0x80 | (charcode & 0x3f));
+        }
+        else if (charcode < 0xd800 || charcode >= 0xe000) {
+          utf8.push(0xe0 | (charcode >> 12),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+        // surrogate pair
+        else {
+          i++;
+          // UTF-16 encodes 0x10000-0x10FFFF by
+          // subtracting 0x10000 and splitting the
+          // 20 bits of 0x0-0xFFFFF into two halves
+          charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+            | (str.charCodeAt(i) & 0x3ff));
+          utf8.push(0xf0 | (charcode >>18),
+              0x80 | ((charcode>>12) & 0x3f),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+      }
+      return utf8;
+    }
+    return toUTF8Array(s);
+  };
+
+}();
+
+(function (factory) {
+  if (typeof define === 'function' && define.amd) {
+      define([], factory);
+  } else if (typeof exports === 'object') {
+      module.exports = factory();
+  }
+}(function () {
+    return qrcode;
+}));
+
+</script>
+<style>
+:root{
+  --navy:#182338;
+  --navy-2:#1F2C46;
+  --navy-3:#26344F;
+  --brass:#B8925A;
+  --brass-light:#D9B98A;
+  --paper:#FBF8F2;
+  --canvas:#F3F1EA;
+  --card:#FFFFFF;
+  --line:#E4DECF;
+  --line-soft:#ECE7DA;
+  --ink:#1D2333;
+  --slate:#5C6472;
+  --slate-light:#8B8F98;
+  --success:#2F6F4E;
+  --success-bg:#E7F1EB;
+  --amber:#A8701F;
+  --amber-bg:#F5EBDB;
+  --rust:#A3402F;
+  --rust-bg:#F5E5E0;
+  --shadow: 0 1px 2px rgba(24,35,56,0.04), 0 8px 24px rgba(24,35,56,0.06);
+  --shadow-lg: 0 4px 8px rgba(24,35,56,0.06), 0 24px 48px rgba(24,35,56,0.12);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--canvas);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+}
+.serif{font-family:'Fraunces',serif;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+a{color:inherit;text-decoration:none;}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+::selection{background:var(--brass-light);}
+
+/* ---------- Layout ---------- */
+#app{display:flex;min-height:100vh;}
+.sidebar{
+  width:232px;flex-shrink:0;background:linear-gradient(180deg,var(--navy) 0%, var(--navy-2) 100%);
+  color:#EDE9DC;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
+}
+.sidebar-brand{padding:26px 22px 18px;border-bottom:1px solid rgba(237,233,220,0.08);}
+.sidebar-brand .kicker{font-size:11px;letter-spacing:0.06em;color:var(--brass-light);margin-bottom:4px;}
+.sidebar-brand .name{font-family:'Fraunces',serif;font-size:19px;font-weight:600;line-height:1.25;color:#F7F4EA;}
+.nav{padding:14px 12px;flex:1;}
+.nav-item{
+  display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:8px;margin-bottom:2px;
+  color:#C9C6BB;font-size:14px;font-weight:500;transition:background .15s ease, color .15s ease;
+}
+.nav-item svg{flex-shrink:0;opacity:0.85;}
+.nav-item:hover{background:rgba(255,255,255,0.06);color:#F3F0E6;}
+.nav-item.active{background:rgba(184,146,90,0.18);color:#F7EFDF;}
+.nav-item.active svg{opacity:1;}
+.nav-cta{
+  margin:10px 12px 18px;padding:12px 14px;border-radius:9px;border:1px solid rgba(184,146,90,0.5);
+  background:linear-gradient(135deg,var(--brass) 0%, #9C7746 100%);color:#1A1206;font-weight:700;font-size:13.5px;
+  display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:0.01em;
+  box-shadow:0 6px 16px rgba(184,146,90,0.28);
+}
+.nav-cta:hover{filter:brightness(1.06);}
+.sidebar-foot{padding:16px 22px 20px;font-size:11.5px;color:#8D93A0;border-top:1px solid rgba(237,233,220,0.08);}
+
+.main{flex:1;min-width:0;}
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;padding:20px 32px;
+  background:var(--paper);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;
+}
+.topbar h1{font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin:0;}
+.topbar .sub{font-size:13px;color:var(--slate);margin-top:2px;}
+.content{padding:28px 32px 60px;max-width:1240px;}
+
+/* ---------- Buttons ---------- */
+.btn{
+  border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 16px;border-radius:8px;
+  font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:7px;transition:all .15s ease;
+}
+.btn:hover{border-color:#CFC7AE;background:#FAF8F2;}
+.btn-primary{
+  background:var(--navy);border-color:var(--navy);color:#F5F2E7;
+}
+.btn-primary:hover{background:var(--navy-2);}
+.btn-brass{
+  background:linear-gradient(135deg,var(--brass) 0%, #9C7746 100%);border-color:transparent;color:#1A1206;
+}
+.btn-brass:hover{filter:brightness(1.05);}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--slate);}
+.btn-ghost:hover{background:rgba(24,35,56,0.05);color:var(--ink);}
+.btn-danger{color:var(--rust);border-color:#EAD3CC;background:#fff;}
+.btn-danger:hover{background:var(--rust-bg);}
+.btn-sm{padding:6px 11px;font-size:12.5px;border-radius:7px;}
+.btn:disabled{opacity:0.45;cursor:not-allowed;}
+.btn-block{width:100%;justify-content:center;}
+.icon-btn{width:32px;height:32px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:#fff;color:var(--slate);}
+.icon-btn:hover{background:#F5F2E7;color:var(--ink);}
+
+/* ---------- Cards / grid ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px;}
+.stat-card{padding:18px 18px 16px;position:relative;overflow:hidden;}
+.stat-card .label{font-size:12px;color:var(--slate);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;}
+.stat-card .value{font-family:'Fraunces',serif;font-size:26px;font-weight:600;margin-top:8px;color:var(--ink);}
+.stat-card .value.small{font-size:22px;}
+.stat-card .bar{position:absolute;left:0;top:0;bottom:0;width:4px;}
+.stat-card.acc-brass .bar{background:var(--brass);}
+.stat-card.acc-success .bar{background:var(--success);}
+.stat-card.acc-amber .bar{background:var(--amber);}
+.stat-card.acc-rust .bar{background:var(--rust);}
+.stat-card.acc-navy .bar{background:var(--navy);}
+
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+.section-head h2{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0;}
+.section-head .muted{font-size:13px;color:var(--slate);}
+
+select, .select-like{
+  border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;font-size:13.5px;color:var(--ink);
+}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--slate);margin-bottom:6px;}
+.field input, .field select, .field textarea{
+  width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--ink);background:#fff;
+}
+.field input:focus, .field select:focus, .field textarea:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(184,146,90,0.15);}
+.field .hint{font-size:11.5px;color:var(--slate-light);margin-top:4px;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.field-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.currency-input{position:relative;}
+.currency-input .rupee{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--slate);font-size:14px;}
+.currency-input input{padding-left:26px;text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:500;}
+
+/* ---------- Table ---------- */
+.table-wrap{overflow-x:auto;}
+table.data{width:100%;border-collapse:collapse;font-size:13.5px;}
+table.data th{
+  text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:0.045em;color:var(--slate);
+  font-weight:700;padding:11px 14px;border-bottom:1px solid var(--line);background:#FAF8F2;white-space:nowrap;
+}
+table.data td{padding:12px 14px;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
+table.data tr:last-child td{border-bottom:none;}
+table.data tr:hover td{background:#FBF9F3;}
+td.num, th.num{text-align:right;font-family:'IBM Plex Mono',monospace;}
+.empty-row td{text-align:center;padding:40px;color:var(--slate-light);font-family:'Inter';white-space:normal;}
+
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:100px;font-size:11.5px;font-weight:700;letter-spacing:0.02em;}
+.badge::before{content:'';width:6px;height:6px;border-radius:50%;}
+.badge.paid{background:var(--success-bg);color:var(--success);}
+.badge.paid::before{background:var(--success);}
+.badge.partial{background:var(--amber-bg);color:var(--amber);}
+.badge.partial::before{background:var(--amber);}
+.badge.pending{background:var(--rust-bg);color:var(--rust);}
+.badge.pending::before{background:var(--rust);}
+
+.action-row{display:flex;gap:5px;}
+
+/* ---------- Modal ---------- */
+.overlay{position:fixed;inset:0;background:rgba(22,27,38,0.5);display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;z-index:50;}
+.modal{background:#fff;border-radius:14px;max-width:560px;width:100%;box-shadow:var(--shadow-lg);animation:pop .15s ease;}
+.modal.wide{max-width:760px;}
+@keyframes pop{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.modal-head{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
+.modal-head h3{font-family:'Fraunces',serif;font-size:18px;margin:0;font-weight:600;}
+.modal-body{padding:22px 24px;}
+.modal-foot{padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;}
+
+/* ---------- Wizard ---------- */
+.wizard-steps{display:flex;gap:8px;margin-bottom:22px;}
+.wizard-step{flex:1;padding:9px 4px;text-align:center;font-size:12px;font-weight:700;border-radius:8px;background:#F1EEE3;color:var(--slate-light);text-transform:uppercase;letter-spacing:0.03em;}
+.wizard-step.active{background:var(--navy);color:#F5F2E7;}
+.wizard-step.done{background:var(--success-bg);color:var(--success);}
+.total-banner{
+  background:linear-gradient(135deg,var(--navy) 0%, var(--navy-2) 100%);color:#F5F2E7;border-radius:12px;
+  padding:20px 22px;display:flex;align-items:center;justify-content:space-between;margin:18px 0;
+}
+.total-banner .tl{font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--brass-light);}
+.total-banner .tv{font-family:'Fraunces',serif;font-size:32px;font-weight:600;margin-top:4px;}
+.calc-line{display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;border-bottom:1px dashed var(--line);}
+.calc-line.sub{color:var(--slate);}
+.calc-line .amt{font-family:'IBM Plex Mono',monospace;}
+
+/* ---------- Bill / Receipt document ---------- */
+.doc-stage{display:flex;justify-content:center;padding:10px 0 30px;}
+.doc{
+  width:210mm;min-height:297mm;background:#fff;padding:16mm 16mm;box-shadow:var(--shadow-lg);
+  border:1px solid var(--line);position:relative;
+}
+.doc-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:20px;}
+.doc-header .brand-name{font-family:'Fraunces',serif;font-size:22px;font-weight:700;}
+.doc-header .brand-addr{font-size:11.5px;color:var(--slate);margin-top:4px;max-width:280px;line-height:1.5;}
+.doc-header .doc-title{font-size:12px;letter-spacing:0.06em;color:var(--brass);font-weight:700;margin-top:6px;text-transform:uppercase;}
+.doc-meta{text-align:right;font-size:12px;color:var(--slate);}
+.doc-meta .row{display:flex;justify-content:flex-end;gap:10px;margin-bottom:3px;}
+.doc-meta .k{color:var(--slate-light);}
+.doc-meta .v{font-weight:600;color:var(--ink);min-width:110px;text-align:right;}
+.doc-status-tag{display:inline-block;margin-top:8px;padding:5px 14px;border-radius:5px;font-size:12px;font-weight:700;letter-spacing:0.03em;}
+
+.doc-section-title{font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--slate-light);font-weight:700;margin:20px 0 8px;}
+.doc-tenant-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 30px;font-size:13.5px;background:#FAF8F2;padding:14px 16px;border-radius:8px;}
+.doc-tenant-grid .k{color:var(--slate);}
+.doc-tenant-grid .v{font-weight:600;float:right;}
+
+table.doc-table{width:100%;border-collapse:collapse;margin-top:6px;}
+table.doc-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--slate);padding:9px 4px;border-bottom:1.5px solid var(--ink);}
+table.doc-table th.num{text-align:right;}
+table.doc-table td{padding:11px 4px;border-bottom:1px solid var(--line-soft);font-size:14px;}
+table.doc-table td.num{text-align:right;font-family:'IBM Plex Mono',monospace;}
+table.doc-table tr.total-row td{border-top:2px solid var(--ink);border-bottom:none;font-weight:700;font-size:16px;padding-top:14px;}
+table.doc-table tr.total-row td.num{font-family:'Fraunces',serif;font-size:20px;}
+
+.doc-payment-box{margin-top:22px;display:flex;justify-content:flex-end;}
+.doc-payment-inner{width:280px;font-size:13.5px;}
+.doc-payment-inner .prow{display:flex;justify-content:space-between;padding:5px 0;}
+.doc-payment-inner .prow.balance{border-top:1px solid var(--ink);margin-top:6px;padding-top:10px;font-weight:700;font-size:15px;}
+
+.doc-payqr-box{margin-top:22px;display:flex;align-items:center;gap:18px;padding:16px 18px;border:1px solid var(--line);border-radius:10px;background:var(--success-bg);}
+.doc-payqr-code{width:110px;height:110px;flex-shrink:0;background:#fff;padding:6px;border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
+.doc-payqr-code img, .doc-payqr-code canvas{width:100%;height:100%;}
+.doc-payqr-info{font-size:13px;color:var(--ink);}
+.doc-payqr-title{font-family:'Fraunces',serif;font-weight:600;font-size:15px;color:var(--success);margin-bottom:6px;}
+.doc-payqr-amt{margin-bottom:3px;}
+.doc-payqr-upi{margin-bottom:6px;color:var(--slate);}
+.doc-payqr-note{font-size:12px;color:var(--slate);font-style:italic;}
+
+.doc-footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--slate);}
+.doc-credit{margin-top:10px;font-size:10.5px;color:var(--slate);opacity:0.7;letter-spacing:0.02em;}
+.app-credit{margin-top:4px;font-size:10.5px;color:#8D93A0;opacity:0.75;}
+.doc-footer .thanks{font-family:'Fraunces',serif;font-style:italic;font-size:14px;color:var(--ink);margin-bottom:10px;}
+.doc-footer .manager{margin-top:8px;}
+.doc-big-total{text-align:center;margin-top:22px;}
+.doc-big-total .lbl{font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--slate-light);}
+.doc-big-total .val{font-family:'Fraunces',serif;font-size:30px;font-weight:700;color:var(--ink);}
+
+.doc-toolbar{
+  position:sticky;top:0;background:var(--paper);padding:16px 0;display:flex;gap:10px;justify-content:center;
+  border-bottom:1px solid var(--line);margin-bottom:6px;flex-wrap:wrap;z-index:4;
+}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--slate);}
+.empty-state .big{font-family:'Fraunces',serif;font-size:18px;color:var(--ink);margin-bottom:6px;}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:8px;font-size:13.5px;box-shadow:var(--shadow-lg);z-index:100;opacity:0;pointer-events:none;transition:opacity .2s ease, transform .2s ease;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+.search-box{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;min-width:220px;}
+.search-box input{border:none;outline:none;font-size:13.5px;flex:1;background:transparent;}
+.filter-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+.chip{padding:7px 13px;border-radius:100px;font-size:12.5px;font-weight:600;border:1px solid var(--line);background:#fff;color:var(--slate);}
+.chip.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+.tabs{display:flex;gap:4px;background:#F1EEE3;padding:4px;border-radius:9px;width:fit-content;margin-bottom:18px;}
+.tab{padding:8px 16px;font-size:13px;font-weight:600;border-radius:6px;color:var(--slate);}
+.tab.active{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+
+@media (max-width: 900px){
+  .stat-grid{grid-template-columns:repeat(2,1fr);}
+  .field-row, .field-row3{grid-template-columns:1fr;}
+  .sidebar{width:76px;}
+  .sidebar-brand .name, .sidebar-brand .kicker, .nav-item span, .nav-cta span, .sidebar-foot{display:none;}
+  .nav-item, .nav-cta{justify-content:center;}
+  .content{padding:20px 14px 60px;}
+  .topbar{padding:16px 18px;}
+  .doc{width:100%;padding:8mm;}
+}
+
+@media print{
+  body *{visibility:hidden;}
+  #printable, #printable *{visibility:visible;}
+  #printable{position:absolute;left:0;top:0;width:100%;margin:0;padding:0;}
+  .doc{box-shadow:none;border:none;width:100%;}
+  .doc-toolbar{display:none;}
+}
+</style>
+
+<style>
+/* ================= CLOUD SYNC / AUTH ================= */
+.cloud-auth-overlay{position:fixed;inset:0;z-index:99999;background:rgba(247,244,238,.97);display:flex;align-items:center;justify-content:center;padding:24px;}
+.cloud-auth-card{width:min(430px,100%);background:#fff;border:1px solid #e4ddd3;border-radius:18px;box-shadow:0 20px 60px rgba(35,31,28,.12);padding:30px;}
+.cloud-auth-brand{font-family:Fraunces,serif;font-size:28px;font-weight:600;color:#28231f;margin-bottom:6px;}
+.cloud-auth-sub{color:#77706a;font-size:13px;line-height:1.5;margin-bottom:24px;}
+.cloud-auth-card label{display:block;font-size:12px;font-weight:700;color:#554d46;margin:0 0 7px;}
+.cloud-auth-card input{width:100%;box-sizing:border-box;padding:12px 13px;border:1px solid #d8d0c7;border-radius:10px;background:#fff;font:inherit;margin-bottom:14px;outline:none;}
+.cloud-auth-card input:focus{border-color:#9a7a50;box-shadow:0 0 0 3px rgba(154,122,80,.12);}
+.cloud-auth-btn{width:100%;padding:12px 14px;border:0;border-radius:10px;background:#8b6a42;color:#fff;font-weight:700;cursor:pointer;}
+.cloud-auth-btn:disabled{opacity:.65;cursor:wait;}
+.cloud-auth-error{min-height:18px;color:#b14b3a;font-size:12px;margin:0 0 10px;}
+.cloud-auth-note{font-size:11px;color:#8a8178;margin-top:14px;text-align:center;line-height:1.45;}
+.cloud-user{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--slate);margin-right:10px;}
+.cloud-dot{width:8px;height:8px;border-radius:50%;background:#4b8b57;display:inline-block;}
+.cloud-logout{border:1px solid var(--line);background:#fff;color:var(--slate);padding:7px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;}
+.cloud-sync-badge{font-size:10px;color:#4b8b57;margin-top:5px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.cloud-sync-actions{display:inline-flex;align-items:center;gap:5px;margin-left:4px;}
+.cloud-sync-btn{border:1px solid #cfc7bd;background:#fff;color:var(--slate);padding:3px 7px;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;}
+.cloud-sync-btn:disabled{opacity:.55;cursor:wait;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+<script>
+/* =========================================================================
+   RENTAL BILLING MANAGEMENT — app logic
+   ========================================================================= */
+
+/* ---------------------------- Utilities ------------------------------- */
+function num(v){ const n = parseFloat(v); if(isNaN(n) || !isFinite(n) || n<0) return 0; return n; }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function pad3(n){ return String(n).padStart(3,'0'); }
+function inr(n){
+  n = num(n);
+  try{ return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n); }
+  catch(e){ return '₹'+Math.round(n).toString(); }
+}
+function inrPlain(n){ return inr(n).replace('₹','₹ '); }
+function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function currentMonthKey(){ const d=new Date(); return d.getFullYear()+'-'+pad3(d.getMonth()+1).slice(1); }
+function monthKeyFromDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function monthLabel(key){
+  if(!key) return '';
+  const [y,m] = key.split('-').map(Number);
+  const d = new Date(y, m-1, 1);
+  return d.toLocaleDateString('en-IN',{month:'long', year:'numeric'});
+}
+function monthLabelShort(key){
+  if(!key) return '';
+  const [y,m] = key.split('-').map(Number);
+  const d = new Date(y, m-1, 1);
+  return d.toLocaleDateString('en-IN',{month:'short', year:'numeric'});
+}
+function firstDayOfMonth(key){ return `${key}-01`; }
+function lastDayOfMonth(key){
+  const [y,m]=String(key).split('-').map(Number);
+  return `${y}-${String(m).padStart(2,'0')}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
+}
+function formatBillingPeriod(from,to){
+  if(!from || !to) return '';
+  return `${fmtDateDMY(from)} – ${fmtDateDMY(to)}`;
+}
+function fmtDateDMY(iso){
+  if(!iso) return '—';
+  const d = new Date(iso+'T00:00:00');
+  if(isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+}
+function addDays(iso, days){
+  const d = new Date(iso+'T00:00:00');
+  d.setDate(d.getDate()+ (days||0));
+  return d.toISOString().slice(0,10);
+}
+function esc(s){
+  if(s===undefined || s===null) return '';
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function makeUpiQrDataUrl(text){
+  try{
+    if(typeof qrcode==='undefined') return '';
+    const qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    return qr.createDataURL(6, 8);
+  }catch(e){
+    console.error('QR generation failed', e);
+    return '';
+  }
+}
+// PNG (not GIF) QR data URL, drawn on a plain <canvas> — jsPDF's addImage() only
+// reliably accepts JPEG/PNG/WEBP, so for embedding directly in the exported PDF we
+// draw the QR ourselves instead of reusing the library's createDataURL() GIF output.
+function makeUpiQrPngDataUrl(text, cellSize, margin){
+  cellSize = cellSize || 6; margin = margin || 8;
+  try{
+    if(typeof qrcode==='undefined') return '';
+    const qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    const count = qr.getModuleCount();
+    const size = count*cellSize + margin*2;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,size,size);
+    ctx.fillStyle = '#000000';
+    for(let r=0;r<count;r++){
+      for(let c=0;c<count;c++){
+        if(qr.isDark(r,c)) ctx.fillRect(margin + c*cellSize, margin + r*cellSize, cellSize, cellSize);
+      }
+    }
+    return canvas.toDataURL('image/png');
+  }catch(e){
+    console.error('QR PNG generation failed', e);
+    return '';
+  }
+}
+// Single source of truth for a bill's UPI payment link — used by BOTH the on-screen
+// preview and the PDF export, so the "Pay Now" button, the QR code, and the exported
+// PDF's link always point at the exact same dynamically-built URI. Nothing here is
+// hardcoded: pa comes from Settings, am/tn come straight from the bill object.
+function getBillPaymentInfo(b){
+  const s = DB.settings;
+  if(!s.upiId || !b) return null;
+  const amount = num(b.balance) > 0 ? num(b.balance) : num(b.total);
+  const payeeName = s.propertyName || s.ownerName || 'Rental Billing';
+  const upiUri = `upi://pay?pa=${encodeURIComponent(s.upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amount.toFixed(2))}&cu=INR&tn=${encodeURIComponent(b.billNo)}`;
+  return { upiUri, amount, invoiceId: b.billNo, upiId: s.upiId, payeeName };
+}
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=>{ el.classList.remove('show'); }, 2400);
+}
+
+/* ---------------------------- State ------------------------------------ */
+const DEFAULT_SETTINGS = {
+  propertyName: 'I-103, BETA 2',
+  address: '',
+  ownerName: '',
+  managerName: '',
+  managerPhone: '',
+  upiId: '9232698634@axl',
+  bankDetails: '',
+  dueDateDays: 7,
+  paymentInstructions: 'Please pay via UPI and share the transaction ID for quick confirmation.',
+  elecRatePerUnit: 8.5
+};
+
+var DB = {
+  tenants: [],
+  bills: [],
+  settings: {...DEFAULT_SETTINGS},
+  counters: { billSeq:{}, receiptSeq:{} }
+};
+
+var UI = {
+  ready:false,
+  view:'dashboard',
+  dashboardMonth: currentMonthKey(),
+  tenantModal:null,        // { mode:'add'|'edit', id:null }
+  wizard:null,
+  previewBillId:null,
+  previewMode:null,        // 'bill' | 'receipt'
+  billsSearch:'',
+  billsStatus:'all',
+  reportsMonth: currentMonthKey(),
+  confirmDelete:null,      // tenant id pending delete confirmation
+  confirmClearAll:false    // whether the "clear all data" confirmation is open
+};
+
+/* ---------------------------- Persistence ------------------------------ */
+/* Tries Claude's artifact storage first (when viewed inside Claude); falls back
+   to the browser's own localStorage so records are always saved even when this
+   file is downloaded and opened directly in a browser. This guarantees every
+   tenant's every month's bill history stays safe no matter how the file is used. */
+const LOCAL_KEY_PREFIX = 'rentalBillingDashboard_';
+
+/* ---------------------------- Supabase Cloud ---------------------------- */
+const SUPABASE_URL = 'https://plgacupyoeqlcnmmylbi.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_zQkRiguAM1tXRC-_y1qjYw_0P3iPlWo';
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
+let CLOUD_USER = null;
+let CLOUD_SYNCING = false;
+let CLOUD_LAST_SYNC = null;
+let CLOUD_POLL_TIMER = null;
+let CLOUD_REALTIME_CHANNEL = null;
+
+function getCloudRole(){
+  return (CLOUD_USER?.user_metadata?.role || CLOUD_USER?.raw_user_meta_data?.role || 'owner').toLowerCase();
+}
+function isAdmin(){ return !!CLOUD_USER && ['admin','owner'].includes(getCloudRole()); }
+function isOwner(){ return !!CLOUD_USER && getCloudRole()==='owner'; }
+function requireAdmin(action='perform this action'){
+  if(!isAdmin()){ toast('You must be signed in to '+action+'.'); return false; }
+  return true;
+}
+
+function hasArtifactStorage(){
+  return typeof window!=='undefined' && window.storage && typeof window.storage.get==='function' && typeof window.storage.set==='function';
+}
+async function storageGet(key, fallback){
+  if(hasArtifactStorage()){
+    try{
+      const r = await window.storage.get(key, false);
+      if(r && typeof r.value === 'string'){ return JSON.parse(r.value); }
+    }catch(e){ /* fall through */ }
+  }
+  try{
+    const raw = localStorage.getItem(LOCAL_KEY_PREFIX+key);
+    if(raw) return JSON.parse(raw);
+  }catch(e){ /* localStorage unavailable or corrupted */ }
+  return fallback;
+}
+async function storageSet(key, value){
+  let artifactOk = true;
+  if(hasArtifactStorage()){
+    try{ await window.storage.set(key, JSON.stringify(value), false); }
+    catch(e){ artifactOk = false; console.error('artifact storage set failed', key, e); }
+  }
+  try{ localStorage.setItem(LOCAL_KEY_PREFIX+key, JSON.stringify(value)); }
+  catch(e){
+    console.error('localStorage set failed', key, e);
+    if(!artifactOk) toast('Could not save locally — please retry.');
+  }
+}
+
+function localSnapshot(){
+  return {
+    tenants: DB.tenants || [],
+    bills: DB.bills || [],
+    settings: DB.settings || {...DEFAULT_SETTINGS},
+    counters: DB.counters || {billSeq:{}, receiptSeq:{}}
+  };
+}
+function snapshotHasData(d){
+  if(!d) return false;
+  return (Array.isArray(d.tenants) && d.tenants.length>0) ||
+         (Array.isArray(d.bills) && d.bills.length>0) ||
+         (d.settings && JSON.stringify(d.settings)!==JSON.stringify(DEFAULT_SETTINGS)) ||
+         !!(d.counters && ((d.counters.billSeq && Object.keys(d.counters.billSeq).length) || (d.counters.receiptSeq && Object.keys(d.counters.receiptSeq).length)));
+}
+function applySnapshot(d){
+  DB.tenants = Array.isArray(d?.tenants) ? d.tenants : [];
+  DB.bills = Array.isArray(d?.bills) ? d.bills : [];
+  DB.settings = {...DEFAULT_SETTINGS, ...(d?.settings||{})};
+  DB.counters = d?.counters || {billSeq:{}, receiptSeq:{}};
+  if(!DB.counters.billSeq) DB.counters.billSeq = {};
+  if(!DB.counters.receiptSeq) DB.counters.receiptSeq = {};
+}
+async function cloudFetchRow(){
+  if(!supabaseClient || !CLOUD_USER) return null;
+  const {data,error} = await supabaseClient.from('rental_data').select('id,data,updated_at').eq('id',1).maybeSingle();
+  if(error) throw error;
+  return data || null;
+}
+async function cloudSaveSnapshot(){
+  if(!supabaseClient || !CLOUD_USER || !isAdmin()) return false;
+  const payload = localSnapshot();
+  CLOUD_SYNCING = true;
+  try{
+    const {error} = await supabaseClient.from('rental_data').upsert({
+      id: 1,
+      data: payload,
+      updated_at: new Date().toISOString()
+    }, {onConflict:'id'});
+    if(error) throw error;
+    CLOUD_LAST_SYNC = Date.now();
+    return true;
+  }catch(e){
+    console.error('Cloud save failed:', e);
+    toast('Cloud sync failed — data is still saved on this device.');
+    return false;
+  }finally{
+    CLOUD_SYNCING = false;
+  }
+}
+async function cloudLoadOrSeed(){
+  if(!supabaseClient || !CLOUD_USER) return;
+  try{
+    const remote = await cloudFetchRow();
+    const local = localSnapshot();
+    if(remote && remote.data){
+      /* Cloud is the shared source of truth once a shared row exists. */
+      applySnapshot(remote.data);
+      CLOUD_LAST_SYNC = remote.updated_at ? new Date(remote.updated_at).getTime() : Date.now();
+      await Promise.all([
+        storageSet('tenants', DB.tenants),
+        storageSet('bills', DB.bills),
+        storageSet('settings', DB.settings),
+        storageSet('counters', DB.counters)
+      ]);
+    }else if(snapshotHasData(local)){
+      await cloudSaveSnapshot();
+    }else{
+      await cloudSaveSnapshot();
+    }
+  }catch(e){
+    console.error('Cloud load failed:', e);
+    toast('Could not reach cloud. Local data will be used.');
+  }
+}
+async function pollCloud(){
+  if(!CLOUD_USER || CLOUD_SYNCING || UI.view==='wizard' || UI.tenantModal || UI.previewBillId) return;
+  try{
+    const remote = await cloudFetchRow();
+    if(!remote || !remote.updated_at) return;
+    const remoteTime = new Date(remote.updated_at).getTime();
+    if(CLOUD_LAST_SYNC && remoteTime > CLOUD_LAST_SYNC + 500){
+      applySnapshot(remote.data || {});
+      CLOUD_LAST_SYNC = remoteTime;
+      await Promise.all([
+        storageSet('tenants', DB.tenants),
+        storageSet('bills', DB.bills),
+        storageSet('settings', DB.settings),
+        storageSet('counters', DB.counters)
+      ]);
+      UI.dashboardMonth = monthsWithData()[0] || currentMonthKey();
+      render();
+      toast('Updated data synced from cloud.');
+    }
+  }catch(e){ console.warn('Cloud polling failed:', e); }
+}
+function startCloudPolling(){
+  clearInterval(CLOUD_POLL_TIMER);
+  CLOUD_POLL_TIMER = setInterval(pollCloud, 8000);
+}
+
+function cloudLastSyncLabel(){
+  if(!CLOUD_LAST_SYNC) return 'Last sync: —';
+  try{ return 'Last sync: ' + new Date(CLOUD_LAST_SYNC).toLocaleString([], {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short'}); }
+  catch(e){ return 'Last sync: just now'; }
+}
+
+async function cloudSyncNow(btn){
+  if(!CLOUD_USER || !supabaseClient) return;
+  if(CLOUD_SYNCING) return;
+  const oldText = btn ? btn.textContent : '';
+  if(btn){ btn.disabled=true; btn.textContent='Syncing…'; }
+  try{
+    const remote = await cloudFetchRow();
+    if(!remote){
+      await cloudSaveSnapshot();
+      toast('Cloud sync complete.');
+    }else{
+      const remoteTime = remote.updated_at ? new Date(remote.updated_at).getTime() : 0;
+      if(remote.data && (!CLOUD_LAST_SYNC || remoteTime > CLOUD_LAST_SYNC + 200)){
+        applySnapshot(remote.data);
+        CLOUD_LAST_SYNC = remoteTime || Date.now();
+        await Promise.all([
+          storageSet('tenants', DB.tenants),
+          storageSet('bills', DB.bills),
+          storageSet('settings', DB.settings),
+          storageSet('counters', DB.counters)
+        ]);
+        UI.dashboardMonth = monthsWithData()[0] || currentMonthKey();
+        if(UI.ready) render();
+        toast('Latest cloud data synced.');
+      }else{
+        CLOUD_LAST_SYNC = remoteTime || CLOUD_LAST_SYNC || Date.now();
+        toast('Already up to date.');
+        if(UI.ready) render();
+      }
+    }
+  }catch(e){
+    console.error('Manual cloud sync failed:', e);
+    toast('Sync failed — please check your internet connection.');
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent=oldText || '↻ Sync Now'; }
+  }
+}
+
+async function handleRealtimeCloudChange(payload){
+  if(!CLOUD_USER || CLOUD_SYNCING) return;
+  const row = payload?.new;
+  if(!row || row.id !== 1 || !row.data) return;
+  const remoteTime = row.updated_at ? new Date(row.updated_at).getTime() : Date.now();
+  if(CLOUD_LAST_SYNC && remoteTime <= CLOUD_LAST_SYNC + 200) return;
+  applySnapshot(row.data);
+  CLOUD_LAST_SYNC = remoteTime;
+  await Promise.all([
+    storageSet('tenants', DB.tenants),
+    storageSet('bills', DB.bills),
+    storageSet('settings', DB.settings),
+    storageSet('counters', DB.counters)
+  ]);
+  UI.dashboardMonth = monthsWithData()[0] || currentMonthKey();
+  if(UI.ready) render();
+  toast('Updated data synced instantly from cloud.');
+}
+
+function startCloudRealtime(){
+  if(!supabaseClient || !CLOUD_USER) return;
+  if(CLOUD_REALTIME_CHANNEL){
+    try{ supabaseClient.removeChannel(CLOUD_REALTIME_CHANNEL); }catch(e){}
+    CLOUD_REALTIME_CHANNEL = null;
+  }
+  CLOUD_REALTIME_CHANNEL = supabaseClient
+    .channel('rental-data-live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'rental_data', filter: 'id=eq.1' }, handleRealtimeCloudChange)
+    .subscribe((status) => {
+      console.log('Rental Billing realtime status:', status);
+    });
+}
+
+function stopCloudRealtime(){
+  if(CLOUD_REALTIME_CHANNEL){
+    try{ supabaseClient.removeChannel(CLOUD_REALTIME_CHANNEL); }catch(e){}
+    CLOUD_REALTIME_CHANNEL = null;
+  }
+}
+
+async function loadDB(){
+  const [tenants, bills, settings, counters] = await Promise.all([
+    storageGet('tenants', []),
+    storageGet('bills', []),
+    storageGet('settings', {...DEFAULT_SETTINGS}),
+    storageGet('counters', { billSeq:{}, receiptSeq:{} })
+  ]);
+  applySnapshot({tenants,bills,settings,counters});
+  if(CLOUD_USER) await cloudLoadOrSeed();
+}
+async function saveTenants(){ await storageSet('tenants', DB.tenants); if(CLOUD_USER && isAdmin()) await cloudSaveSnapshot(); }
+async function saveBills(){ await storageSet('bills', DB.bills); if(CLOUD_USER && isAdmin()) await cloudSaveSnapshot(); }
+async function saveSettings(){ await storageSet('settings', DB.settings); if(CLOUD_USER && isAdmin()) await cloudSaveSnapshot(); }
+async function saveCounters(){ await storageSet('counters', DB.counters); if(CLOUD_USER && isAdmin()) await cloudSaveSnapshot(); }
+
+/* ---------------------------- Auth UI ---------------------------------- */
+function renderCloudLogin(){
+  if(document.getElementById('cloudAuthOverlay')) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'cloudAuthOverlay';
+  wrap.className = 'cloud-auth-overlay';
+  wrap.innerHTML = `
+    <div class="cloud-auth-card">
+      <div class="cloud-auth-brand">Rental Billing</div>
+      <div class="cloud-auth-sub">Sign in to access your shared cloud dashboard. The same data will be available to you and the owner on any device.</div>
+      <form onsubmit="cloudLogin(event)">
+        <label>Email</label>
+        <input id="cloudEmail" type="email" autocomplete="username" placeholder="Enter your email" required>
+        <label>Password</label>
+        <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+        <div id="cloudAuthError" class="cloud-auth-error"></div>
+        <button id="cloudLoginBtn" class="cloud-auth-btn" type="submit">Sign In</button>
+      </form>
+      <div class="cloud-auth-note">Secure login powered by Supabase • Your existing local backup remains available.</div>
+    </div>`;
+  document.body.appendChild(wrap);
+}
+function hideCloudLogin(){ const el=document.getElementById('cloudAuthOverlay'); if(el) el.remove(); }
+async function cloudLogin(ev){
+  ev.preventDefault();
+  if(!supabaseClient) return;
+  const email=document.getElementById('cloudEmail').value.trim();
+  const password=document.getElementById('cloudPassword').value;
+  const btn=document.getElementById('cloudLoginBtn');
+  const err=document.getElementById('cloudAuthError');
+  btn.disabled=true; btn.textContent='Signing in…'; err.textContent='';
+  try{
+    const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});
+    if(error) throw error;
+    CLOUD_USER=data.user;
+    hideCloudLogin();
+    UI.ready=false;
+    render();
+    await loadDB();
+    UI.ready=true;
+    UI.dashboardMonth=monthsWithData()[0] || currentMonthKey();
+    render();
+    startCloudRealtime();
+    startCloudPolling();
+    toast('Signed in. Cloud sync is active.');
+  }catch(e){
+    console.error(e);
+    err.textContent=e.message || 'Could not sign in.';
+  }finally{ btn.disabled=false; btn.textContent='Sign In'; }
+}
+async function cloudLogout(){
+  try{ await supabaseClient.auth.signOut(); }catch(e){ console.error(e); }
+  CLOUD_USER=null; CLOUD_LAST_SYNC=null;
+  clearInterval(CLOUD_POLL_TIMER);
+  stopCloudRealtime();
+  UI.ready=false;
+  render();
+  renderCloudLogin();
+}
+async function initCloudAuth(){
+  if(!supabaseClient){ renderCloudLogin(); return; }
+  try{
+    const {data:{session}}=await supabaseClient.auth.getSession();
+    if(session?.user){
+      CLOUD_USER=session.user;
+      return;
+    }
+  }catch(e){ console.error('Auth session check failed:',e); }
+  renderCloudLogin();
+}
+
+/* ---------------------------- Backup / Restore -------------------------- */
+function exportBackup(){
+  const backup = { tenants:DB.tenants, bills:DB.bills, settings:DB.settings, counters:DB.counters, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `Rental-Billing-Backup-${todayISO()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Backup file downloaded.');
+}
+function triggerImportBackup(){ document.getElementById('backupFileInput').click(); }
+async function importBackupFile(input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if(!data || !Array.isArray(data.tenants) || !Array.isArray(data.bills)){
+      toast('This does not look like a valid backup file.');
+      return;
+    }
+    DB.tenants = data.tenants || [];
+    DB.bills = data.bills || [];
+    DB.settings = {...DEFAULT_SETTINGS, ...(data.settings||{})};
+    DB.counters = data.counters || { billSeq:{}, receiptSeq:{} };
+    await Promise.all([saveTenants(), saveBills(), saveSettings(), saveCounters()]);
+    toast('Backup restored successfully.');
+    UI.dashboardMonth = monthsWithData()[0] || currentMonthKey();
+    render();
+  }catch(e){
+    console.error(e);
+    toast('Could not read that backup file.');
+  }
+  input.value = '';
+}
+
+
+/* ---------------------------- Derived helpers --------------------------- */
+function calcTotal(c){
+  return num(c.rent) + num(c.electricity) + num(c.maintenance) + num(c.png) + num(c.other) - num(c.discount);
+}
+function calcStatus(total, paid){
+  paid = num(paid); total = num(total);
+  if(paid <= 0) return 'PENDING';
+  if(paid >= total) return 'PAID';
+  return 'PARTIALLY PAID';
+}
+function statusClass(status){
+  if(status==='PAID') return 'paid';
+  if(status==='PARTIALLY PAID') return 'partial';
+  return 'pending';
+}
+function genBillNo(monthKey){
+  DB.counters.billSeq[monthKey] = (DB.counters.billSeq[monthKey]||0) + 1;
+  return `BILL-${monthKey}-${pad3(DB.counters.billSeq[monthKey])}`;
+}
+function genReceiptNo(monthKey){
+  DB.counters.receiptSeq[monthKey] = (DB.counters.receiptSeq[monthKey]||0) + 1;
+  return `REC-${monthKey}-${pad3(DB.counters.receiptSeq[monthKey])}`;
+}
+function getTenant(id){ return DB.tenants.find(t=>t.id===id); }
+function getBill(id){ return DB.bills.find(b=>b.id===id); }
+function findBillForTenantMonth(tenantId, month, excludeId){
+  return DB.bills.find(b=>b.tenantId===tenantId && b.month===month && b.id!==excludeId);
+}
+function findBillForTenantPeriod(tenantId, from, to, excludeId){
+  return DB.bills.find(b=>{
+    if(b.id===excludeId || b.tenantId!==tenantId) return false;
+    const bf = b.periodFrom || firstDayOfMonth(b.month);
+    const bt = b.periodTo || lastDayOfMonth(b.month);
+    return bf===from && bt===to;
+  });
+}
+function billsForMonth(month){ return DB.bills.filter(b=>b.month===month); }
+function monthsWithData(){
+  const s = new Set([currentMonthKey()]);
+  DB.bills.forEach(b=>s.add(b.month));
+  return Array.from(s).sort().reverse();
+}
+
+/* ---------------------------- Icons ------------------------------------ */
+function icon(name, size){
+  size = size || 16;
+  const s = `width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"`;
+  const paths = {
+    home:'<path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>',
+    users:'<circle cx="9" cy="8" r="3"/><path d="M2.5 19c.5-3.2 3-5 6.5-5s6 1.8 6.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2c2.6.3 4.2 1.9 4.6 4.3"/>',
+    plus:'<path d="M12 5v14M5 12h14"/>',
+    receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2Z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+    bar:'<path d="M4 20V10M11 20V4M18 20v-7"/>',
+    gear:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.15-1.45l1.9-1.5-2-3.4-2.25.7A7 7 0 0 0 15 5.1L14.6 2.8h-4l-.4 2.3a7 7 0 0 0-1.5 1.25l-2.25-.7-2 3.4 1.9 1.5A7 7 0 0 0 6 12c0 .5.05.98.15 1.45l-1.9 1.5 2 3.4 2.25-.7c.45.4.96.75 1.5 1.05l.4 2.3h4l.4-2.3a7 7 0 0 0 1.5-1.05l2.25.7 2-3.4-1.9-1.5c.1-.47.15-.95.15-1.45Z"/>',
+    eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+    edit:'<path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5.5 17Z"/><path d="M13.5 6.5l3 3"/>',
+    trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
+    download:'<path d="M12 4v11M7 11l5 5 5-5"/><path d="M4 19.5h16"/>',
+    image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 18.5 9.5 13l3 3 3-3.5L20 17"/>',
+    printer:'<path d="M6 9V4h12v5"/><rect x="4" y="9" width="16" height="7" rx="1.4"/><rect x="7" y="14" width="10" height="7"/>',
+    whatsapp:'<path d="M4 20l1.3-3.9A8 8 0 1 1 8.7 19L4 20Z"/><path d="M8.5 9.3c.2-.5.4-.5.6-.5h.5c.15 0 .35 0 .5.4.2.5.6 1.6.65 1.7.05.1.08.25 0 .4-.08.15-.12.25-.25.4-.12.15-.25.3-.35.4-.12.12-.25.25-.1.5.15.25.7 1.15 1.5 1.85 1 .95 1.85 1.25 2.1 1.4.25.15.4.12.55-.05.15-.18.6-.7.78-.95.18-.25.35-.2.58-.12.25.1 1.5.7 1.75.85.25.12.4.18.48.3.08.12.08.65-.15 1.3-.22.6-1.3 1.2-1.8 1.25-.5.05-1 .25-3.35-.7-2.85-1.15-4.65-4.05-4.8-4.25-.15-.2-1.1-1.45-1.1-2.8 0-1.3.7-1.95.93-2.2Z"/>',
+    search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    check:'<path d="M5 12.5 10 17l9-10"/>',
+    close:'<path d="M6 6l12 12M18 6 6 18"/>',
+    chevleft:'<path d="M15 19l-7-7 7-7"/>',
+    file:'<path d="M7 3h7l5 5v13H7Z"/><path d="M14 3v5h5"/><path d="M9.5 13h5M9.5 16.5h5"/>',
+    building:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h1.4M13.6 7H15M9 11h1.4M13.6 11H15M9 15h1.4M13.6 15H15"/><path d="M10 21v-4h4v4"/>',
+    coin:'<circle cx="12" cy="12" r="9"/><path d="M12 7.5v9M9.3 9.3c0-1.1 1.2-1.8 2.7-1.8s2.7.7 2.7 1.6c0 2.2-5.4 1.1-5.4 3.4 0 1 1.2 1.7 2.7 1.7s2.7-.7 2.7-1.8"/>',
+  };
+  return `<svg ${s}>${paths[name]||''}</svg>`;
+}
+
+/* ---------------------------- Init -------------------------------------- */
+async function init(){
+  await initCloudAuth();
+  if(!CLOUD_USER){
+    UI.ready = false;
+    render();
+    renderCloudLogin();
+    return;
+  }
+  await loadDB();
+  UI.ready = true;
+  UI.dashboardMonth = monthsWithData()[0] || currentMonthKey();
+  render();
+  startCloudRealtime();
+  startCloudPolling();
+}
+window.addEventListener('DOMContentLoaded', init);
+
+/* ============================== RENDER SHELL ============================ */
+function render(){
+  const app = document.getElementById('app');
+  if(!UI.ready){ app.innerHTML = renderLoading(); return; }
+  app.innerHTML = `
+    ${renderSidebar()}
+    <div class="main">
+      ${renderTopbar()}
+      <div class="content">${renderView()}</div>
+    </div>
+    ${UI.tenantModal ? renderTenantModal() : ''}
+    ${UI.confirmDelete ? renderConfirmDeleteModal() : ''}
+    ${UI.confirmClearAll ? renderConfirmClearAllModal() : ''}
+    ${UI.paymentModal ? renderPaymentModal() : ''}
+  `;
+  afterRender();
+}
+function renderLoading(){
+  return `<div style="display:flex;align-items:center;justify-content:center;height:100vh;width:100vw;color:var(--slate);font-family:'Fraunces',serif;font-size:16px;">Loading your building's ledger…</div>`;
+}
+function renderSidebar(){
+  const items = [
+    {id:'dashboard', label:'Dashboard', icon:'home'},
+    {id:'tenants', label:'Tenants', icon:'users'},
+    {id:'bills', label:'Bills', icon:'receipt'},
+    {id:'reports', label:'Reports', icon:'bar'},
+    {id:'settings', label:'Settings', icon:'gear'},
+  ];
+  const navHtml = items.map(it => `
+    <div class="nav-item ${UI.view===it.id?'active':''}" onclick="goView('${it.id}')">
+      ${icon(it.icon,17)}<span>${it.label}</span>
+    </div>`).join('');
+  return `
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      <div class="kicker">PROPERTY LEDGER</div>
+      <div class="name">${esc(DB.settings.propertyName || 'Rental Billing')}</div>
+    </div>
+    ${isAdmin() ? `<div class="nav-cta" onclick="openWizard()">${icon('plus',16)}<span>Create Monthly Bill</span></div>` : ''}
+    <div class="nav">${navHtml}</div>
+    <div class="sidebar-foot">${DB.settings.managerName ? 'Managed by '+esc(DB.settings.managerName) : 'Rental Billing Dashboard'}<div class="app-credit">Design and Created by Aryan</div></div>
+  </div>`;
+}
+function renderTopbar(){
+  const titles = {
+    dashboard: ['Dashboard', 'Overview of rent and utility billing for your building'],
+    tenants: ['Tenants', 'Add and manage tenant records across all floors'],
+    bills: ['Bills', 'Every bill you have generated, searchable by tenant or month'],
+    reports: ['Monthly Collection Report', 'Billing and collection summary for a selected month'],
+    settings: ['Settings', 'Details that appear on every generated bill'],
+    wizard: [UI.wizard && UI.wizard.editingBillId ? 'Edit Bill' : 'Create Monthly Bill', 'Select a tenant, enter charges, and generate the bill'],
+    preview: [UI.previewMode==='receipt' ? 'Payment Receipt' : 'Bill Preview', 'Review, download and share']
+  };
+  const t = titles[UI.view] || ['Rental Billing', ''];
+  return `<div class="topbar"><div><h1>${t[0]}</h1><div class="sub">${t[1]}<div class="cloud-sync-badge"><span class="cloud-dot"></span> Cloud sync active • ${getCloudRole()==='owner'?'Owner':'Admin'} <span id="cloud-last-sync-label">${cloudLastSyncLabel()}</span><span class="cloud-sync-actions"><button class="cloud-sync-btn" onclick="cloudSyncNow(this)">↻ Sync Now</button></span></div></div></div><div style="display:flex;align-items:center;gap:8px;">${CLOUD_USER?`<div class="cloud-user"><span>${esc(CLOUD_USER.email||'Signed in')}</span></div><button class="cloud-logout" onclick="cloudLogout()">Sign out</button>`:''}${UI.view==='dashboard' && isAdmin() ? `<button class="btn btn-brass" onclick="openWizard()">${icon('plus',15)} Create Monthly Bill</button>` : ''}</div></div>`;
+}
+function renderView(){
+  switch(UI.view){
+    case 'dashboard': return renderDashboard();
+    case 'tenants': return renderTenants();
+    case 'bills': return renderBillsView();
+    case 'reports': return renderReports();
+    case 'settings': return renderSettings();
+    case 'wizard': return renderWizard();
+    case 'preview': return renderPreview();
+    default: return renderDashboard();
+  }
+}
+function goView(v){ if(v==='wizard' && !isAdmin()){ toast('Please sign in to access billing management.'); return; } UI.view = v; render(); }
+function afterRender(){
+  // reattach any listeners that need direct DOM refs (search inputs already have inline handlers)
+}
+
+/* ============================== DASHBOARD ================================ */
+function renderDashboard(){
+  const months = monthsWithData();
+  if(!months.includes(UI.dashboardMonth)) months.unshift(UI.dashboardMonth);
+  const bills = billsForMonth(UI.dashboardMonth);
+  const totalBilled = bills.reduce((s,b)=>s+b.total,0);
+  const totalCollected = bills.reduce((s,b)=>s+num(b.amountPaid),0);
+  const totalPending = bills.reduce((s,b)=>s+Math.max(b.balance,0),0);
+  const paidCount = bills.filter(b=>b.status==='PAID').length;
+  const pendingCount = bills.filter(b=>b.status==='PENDING').length;
+  const partialCount = bills.filter(b=>b.status==='PARTIALLY PAID').length;
+
+  const monthOptions = months.map(m=>`<option value="${m}" ${m===UI.dashboardMonth?'selected':''}>${monthLabel(m)}</option>`).join('');
+
+  const rows = bills.length ? bills.map(b=>`
+    <tr>
+      <td><strong>${esc(b.flat)}</strong><div style="font-size:11px;color:var(--slate-light)">Floor ${esc(b.floor)}</div></td>
+      <td>${esc(b.tenantName)}</td>
+      <td class="num">${inr(b.rent)}</td>
+      <td class="num">${inr(b.electricity)}</td>
+      <td class="num">${inr(b.png)}</td>
+      <td class="num">${inr(b.maintenance)}</td>
+      <td class="num"><strong>${inr(b.total)}</strong></td>
+      <td class="num">${inr(b.amountPaid)}</td>
+      <td class="num">${inr(b.balance)}</td>
+      <td><span class="badge ${statusClass(b.status)}">${b.status}</span></td>
+      <td>
+        <div class="action-row">
+          <button class="icon-btn" title="View bill" onclick="openPreview('${b.id}','bill')">${icon('eye',15)}</button>
+          ${isAdmin() ? `<button class="icon-btn" title="Edit bill" onclick="openWizard('${b.id}')">${icon('edit',15)}</button>` : ''}
+          <button class="icon-btn" title="Share on WhatsApp" onclick="shareWhatsapp('${b.id}')">${icon('whatsapp',15)}</button>
+        </div>
+      </td>
+    </tr>`).join('') : `<tr class="empty-row"><td colspan="11">No bills generated for ${monthLabel(UI.dashboardMonth)} yet. Click <strong>Create Monthly Bill</strong> to get started.</td></tr>`;
+
+  return `
+  <div class="section-head">
+    <div></div>
+    <select onchange="UI.dashboardMonth=this.value; render();">${monthOptions}</select>
+  </div>
+  <div class="stat-grid">
+    <div class="card stat-card acc-navy"><div class="bar"></div><div class="label">Total Tenants</div><div class="value">${DB.tenants.length}</div></div>
+    <div class="card stat-card acc-brass"><div class="bar"></div><div class="label">Bills Generated</div><div class="value">${bills.length}</div></div>
+    <div class="card stat-card acc-navy"><div class="bar"></div><div class="label">Total Amount Billed</div><div class="value small">${inr(totalBilled)}</div></div>
+    <div class="card stat-card acc-success"><div class="bar"></div><div class="label">Total Collected</div><div class="value small">${inr(totalCollected)}</div></div>
+    <div class="card stat-card acc-rust"><div class="bar"></div><div class="label">Total Pending</div><div class="value small">${inr(totalPending)}</div></div>
+    <div class="card stat-card acc-success"><div class="bar"></div><div class="label">Paid Bills</div><div class="value">${paidCount}</div></div>
+    <div class="card stat-card acc-amber"><div class="bar"></div><div class="label">Partially Paid</div><div class="value">${partialCount}</div></div>
+    <div class="card stat-card acc-rust"><div class="bar"></div><div class="label">Pending Bills</div><div class="value">${pendingCount}</div></div>
+  </div>
+  <div class="section-head"><h2>Billing — ${monthLabel(UI.dashboardMonth)}</h2><span class="muted">${bills.length} bill${bills.length===1?'':'s'}</span></div>
+  <div class="card table-wrap">
+    <table class="data">
+      <thead><tr>
+        <th>Flat</th><th>Tenant</th><th class="num">Rent</th><th class="num">Electricity</th><th class="num">PNG</th><th class="num">Maintenance</th><th class="num">Total</th><th class="num">Paid</th><th class="num">Balance</th><th>Status</th><th>Actions</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+/* ============================== TENANTS =================================== */
+function renderTenants(){
+  const rows = DB.tenants.length ? DB.tenants.map(t=>`
+    <tr>
+      <td>${esc(t.floor)}</td>
+      <td><strong>${esc(t.flat)}</strong></td>
+      <td>${esc(t.name)}</td>
+      <td>${esc(t.mobile)||'—'}</td>
+      <td class="num">${inr(t.rent)}</td>
+      <td style="white-space:normal;max-width:220px;color:var(--slate);">${esc(t.notes)||'—'}</td>
+      <td>
+        <div class="action-row">
+          ${isAdmin() ? `<button class="icon-btn" title="Edit tenant" onclick="openTenantModal('edit','${t.id}')">${icon('edit',15)}</button><button class="icon-btn" title="Delete tenant" onclick="askDeleteTenant('${t.id}')">${icon('trash',15)}</button>` : `<span class="muted">View only</span>`}
+        </div>
+      </td>
+    </tr>`).join('') : `<tr class="empty-row"><td colspan="7">No tenants yet. Add your first tenant to start billing.</td></tr>`;
+
+  return `
+  <div class="section-head">
+    <h2>All Tenants <span class="muted">(${DB.tenants.length})</span></h2>
+    ${isAdmin() ? `<button class="btn btn-primary" onclick="openTenantModal('add')">${icon('plus',15)} Add Tenant</button>` : ''}
+  </div>
+  <div class="card table-wrap">
+    <table class="data">
+      <thead><tr><th>Floor</th><th>Flat</th><th>Tenant Name</th><th>Mobile</th><th class="num">Monthly Rent</th><th>Notes</th><th>Actions</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function openTenantModal(mode, id){
+  if(!requireAdmin(mode==='add'?'add a tenant':'edit a tenant')) return;
+  UI.tenantModal = { mode, id: id||null };
+  render();
+}
+function closeTenantModal(){ UI.tenantModal = null; render(); }
+function renderTenantModal(){
+  const editing = UI.tenantModal.mode==='edit';
+  const t = editing ? getTenant(UI.tenantModal.id) : { floor:'', flat:'', name:'', mobile:'', rent:'', notes:'' };
+  return `
+  <div class="overlay" onclick="if(event.target===this) closeTenantModal();">
+    <div class="modal">
+      <div class="modal-head"><h3>${editing?'Edit Tenant':'Add Tenant'}</h3><button class="icon-btn" onclick="closeTenantModal()">${icon('close',15)}</button></div>
+      <div class="modal-body">
+        <div class="field-row">
+          <div class="field"><label>Floor</label><input id="f_floor" value="${esc(t.floor)}" placeholder="e.g. 1" /></div>
+          <div class="field"><label>Flat / Room Number</label><input id="f_flat" value="${esc(t.flat)}" placeholder="e.g. 101" /></div>
+        </div>
+        <div class="field"><label>Tenant Name</label><input id="f_name" value="${esc(t.name)}" placeholder="e.g. Aryan" /></div>
+        <div class="field-row">
+          <div class="field"><label>Mobile Number</label><input id="f_mobile" value="${esc(t.mobile)}" placeholder="10-digit mobile" /></div>
+          <div class="field"><label>Monthly Rent</label>
+            <div class="currency-input"><span class="rupee">₹</span><input id="f_rent" value="${t.rent||''}" placeholder="14000" /></div>
+          </div>
+        </div>
+        <div class="field"><label>Notes (optional)</label><textarea id="f_notes" rows="2" placeholder="Anything worth remembering about this tenant">${esc(t.notes)}</textarea></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="closeTenantModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveTenantForm(${editing?`'${t.id}'`:'null'})">${icon('check',15)} ${editing?'Save Changes':'Add Tenant'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function saveTenantForm(id){
+  const floor = document.getElementById('f_floor').value.trim();
+  const flat = document.getElementById('f_flat').value.trim();
+  const name = document.getElementById('f_name').value.trim();
+  const mobile = document.getElementById('f_mobile').value.trim();
+  const rent = num(document.getElementById('f_rent').value);
+  const notes = document.getElementById('f_notes').value.trim();
+  if(!flat || !name){ toast('Flat number and tenant name are required.'); return; }
+  if(id){
+    const t = getTenant(id);
+    Object.assign(t, {floor, flat, name, mobile, rent, notes});
+    DB.bills.forEach(b=>{ if(b.tenantId===id){ b.tenantName = name; b.flat = flat; b.floor = floor; } });
+    await Promise.all([saveTenants(), saveBills()]);
+    toast('Tenant updated.');
+  } else {
+    DB.tenants.push({ id: uid(), floor, flat, name, mobile, rent, notes, createdAt: Date.now() });
+    await saveTenants();
+    toast('Tenant added.');
+  }
+  UI.tenantModal = null;
+  render();
+}
+function askDeleteTenant(id){ if(!requireAdmin('delete a tenant')) return; UI.confirmDelete = id; render(); }
+function renderConfirmDeleteModal(){
+  const t = getTenant(UI.confirmDelete);
+  if(!t) { UI.confirmDelete=null; return ''; }
+  const billCount = DB.bills.filter(b=>b.tenantId===t.id).length;
+  return `
+  <div class="overlay" onclick="if(event.target===this){ UI.confirmDelete=null; render(); }">
+    <div class="modal">
+      <div class="modal-head"><h3>Remove tenant?</h3><button class="icon-btn" onclick="UI.confirmDelete=null; render();">${icon('close',15)}</button></div>
+      <div class="modal-body">
+        <p style="margin:0 0 8px;font-size:14.5px;">Remove <strong>${esc(t.name)}</strong> (Flat ${esc(t.flat)}) from your tenant list?</p>
+        ${billCount ? `<p style="font-size:13px;color:var(--slate);">Their ${billCount} existing bill${billCount===1?'':'s'} will be kept in Bill History for your records.</p>` : ''}
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="UI.confirmDelete=null; render();">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmDeleteTenant()">${icon('trash',15)} Remove Tenant</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function confirmDeleteTenant(){
+  if(!requireAdmin('delete a tenant')) return;
+  DB.tenants = DB.tenants.filter(t=>t.id!==UI.confirmDelete);
+  UI.confirmDelete = null;
+  await saveTenants();
+  toast('Tenant removed.');
+  render();
+}
+
+function askClearAllData(){ if(!requireAdmin('clear all data')) return; UI.confirmClearAll = true; render(); }
+function renderConfirmClearAllModal(){
+  return `
+  <div class="overlay" onclick="if(event.target===this){ UI.confirmClearAll=false; render(); }">
+    <div class="modal">
+      <div class="modal-head"><h3>Delete all data?</h3><button class="icon-btn" onclick="UI.confirmClearAll=false; render();">${icon('close',15)}</button></div>
+      <div class="modal-body">
+        <p style="margin:0 0 8px;font-size:14.5px;">This will permanently delete <strong>all tenants and every month's bills</strong> saved so far, so you can start fresh. Your property settings (name, address, rate, etc.) will stay as they are.</p>
+        <p style="font-size:13px;color:var(--rust);">This cannot be undone unless you have a backup file. Consider downloading a backup first.</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="UI.confirmClearAll=false; render();">Cancel</button>
+        <button class="btn" onclick="exportBackup()">${icon('download',15)} Download Backup First</button>
+        <button class="btn btn-danger" onclick="confirmClearAllData()">${icon('trash',15)} Delete Everything</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function confirmClearAllData(){
+  if(!requireAdmin('clear all data')) return;
+  DB.tenants = [];
+  DB.bills = [];
+  DB.counters = { billSeq:{}, receiptSeq:{} };
+  UI.confirmClearAll = false;
+  await Promise.all([saveTenants(), saveBills(), saveCounters()]);
+  toast('All tenant and bill data cleared. Start fresh by adding a tenant.');
+  UI.dashboardMonth = currentMonthKey();
+  UI.view = 'tenants';
+  render();
+}
+
+/* ============================== QUICK PAYMENT (Payment Done) =============================== */
+function openPaymentModal(billId){
+  if(!requireAdmin('record a payment')) return;
+  const b = getBill(billId);
+  if(!b) return;
+  const due = Math.max(num(b.total) - num(b.amountPaid), 0);
+  UI.paymentModal = {
+    billId,
+    amount: due || num(b.total),
+    date: todayISO(),
+    method: b.paymentMethod || 'UPI',
+    txn: ''
+  };
+  render();
+}
+function closePaymentModal(){ UI.paymentModal = null; render(); }
+function renderPaymentModal(){
+  const p = UI.paymentModal;
+  const b = getBill(p.billId);
+  if(!b){ UI.paymentModal = null; return ''; }
+  const alreadyPaid = num(b.amountPaid);
+  const due = Math.max(num(b.total) - alreadyPaid, 0);
+  return `
+  <div class="overlay" onclick="if(event.target===this) closePaymentModal();">
+    <div class="modal">
+      <div class="modal-head"><h3>Payment Done</h3><button class="icon-btn" onclick="closePaymentModal()">${icon('close',15)}</button></div>
+      <div class="modal-body">
+        <p style="margin:0 0 14px;font-size:13.5px;color:var(--slate);">
+          Recording payment for <strong>${esc(b.tenantName)}</strong> — Flat ${esc(b.flat)}, ${esc(formatBillingPeriod(b.periodFrom || firstDayOfMonth(b.month), b.periodTo || lastDayOfMonth(b.month)))}.
+        </p>
+        <div class="calc-line"><span>Bill Total</span><span class="amt">${inr(b.total)}</span></div>
+        ${alreadyPaid>0 ? `<div class="calc-line"><span>Already Paid</span><span class="amt">${inr(alreadyPaid)}</span></div>` : ''}
+        <div class="calc-line"><span>Balance Due</span><span class="amt"><strong>${inr(due)}</strong></span></div>
+        <div class="field" style="margin-top:14px;">
+          <label>Amount Received Now</label>
+          <div class="currency-input"><span class="rupee">₹</span><input id="pm_amount" value="${p.amount}" oninput="UI.paymentModal.amount=this.value;" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Payment Date</label><input type="date" id="pm_date" value="${p.date}" onchange="UI.paymentModal.date=this.value;" /></div>
+          <div class="field"><label>Payment Method</label>
+            <select id="pm_method" onchange="UI.paymentModal.method=this.value;">
+              ${['UPI','Cash','Bank Transfer','Other'].map(m=>`<option ${p.method===m?'selected':''}>${m}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>Transaction / Reference ID</label><input id="pm_txn" value="${esc(p.txn)}" placeholder="Optional" oninput="UI.paymentModal.txn=this.value;" /></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="closePaymentModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmPaymentDone()">${icon('check',15)} Mark Payment Done</button>
+      </div>
+    </div>
+  </div>`;
+}
+async function confirmPaymentDone(){
+  const p = UI.paymentModal;
+  const b = getBill(p.billId);
+  if(!b) { UI.paymentModal = null; render(); return; }
+  const newlyReceived = num(p.amount);
+  if(newlyReceived <= 0){ toast('Enter a valid amount received.'); return; }
+  b.amountPaid = num(b.amountPaid) + newlyReceived;
+  b.paymentDate = p.date;
+  b.paymentMethod = p.method;
+  b.transactionId = p.txn || b.transactionId || '';
+  b.balance = Math.max(num(b.total) - num(b.amountPaid), 0);
+  b.status = calcStatus(b.total, b.amountPaid);
+  UI.paymentModal = null;
+  await saveBills();
+  toast(b.status==='PAID' ? 'Payment recorded — bill marked as PAID.' : 'Partial payment recorded.');
+  render();
+}
+
+/* ============================== BILL WIZARD =============================== */
+function openWizard(billId){
+  if(!requireAdmin(billId ? 'edit a bill' : 'create a bill')) return;
+  if(DB.tenants.length===0){
+    toast('Add a tenant first, then create a bill.');
+    UI.view = 'tenants';
+    render();
+    return;
+  }
+  if(billId){
+    const b = getBill(billId);
+    UI.wizard = {
+      step:1, editingBillId: b.id, tenantId: b.tenantId, month: b.month,
+      periodFrom: b.periodFrom || firstDayOfMonth(b.month), periodTo: b.periodTo || lastDayOfMonth(b.month),
+      billDate: b.billDate, dueDate: b.dueDate,
+      rent:b.rent, electricity:b.electricity, maintenance:b.maintenance, png:b.png, other:b.other, discount:b.discount,
+      prevUnit: b.prevUnit!==undefined ? b.prevUnit : 0,
+      currUnit: b.currUnit!==undefined ? b.currUnit : 0,
+      elecRate: b.elecRate!==undefined ? b.elecRate : (DB.settings.elecRatePerUnit||8.5),
+      amountPaid:b.amountPaid, paymentDate:b.paymentDate||todayISO(), paymentMethod:b.paymentMethod||'UPI', transactionId:b.transactionId||''
+    };
+  } else {
+    const month = UI.dashboardMonth || currentMonthKey();
+    UI.wizard = {
+      step:1, editingBillId:null, tenantId:'', month,
+      periodFrom: firstDayOfMonth(month), periodTo: lastDayOfMonth(month),
+      billDate: todayISO(), dueDate: addDays(todayISO(), DB.settings.dueDateDays||7),
+      rent:0, electricity:0, maintenance:0, png:0, other:0, discount:0,
+      prevUnit:0, currUnit:0, elecRate: DB.settings.elecRatePerUnit||8.5,
+      amountPaid:0, paymentDate: todayISO(), paymentMethod:'UPI', transactionId:''
+    };
+  }
+  UI.view = 'wizard';
+  render();
+}
+function closeWizard(){ UI.wizard = null; UI.view='dashboard'; render(); }
+function wizardGoStep(n){ UI.wizard.step = n; render(); }
+
+function onWizardTenantChange(sel){
+  const tenant = getTenant(sel.value);
+  UI.wizard.tenantId = sel.value;
+  if(tenant && !UI.wizard.editingBillId){ UI.wizard.rent = tenant.rent; }
+  render();
+}
+function onWizardField(el, field, type){
+  if(type==='num'){ UI.wizard[field] = num(el.value); updateWizardTotals(); }
+  else { UI.wizard[field] = el.value; }
+}
+function onWizardElecInput(el, field){
+  UI.wizard[field] = num(el.value);
+  const w = UI.wizard;
+  const units = Math.max(num(w.currUnit) - num(w.prevUnit), 0);
+  const rate = num(w.elecRate) || (DB.settings.elecRatePerUnit||8.5);
+  const unitsEl = document.getElementById('wizUnitsValue');
+  const rateEl = document.getElementById('wizRateValue');
+  const amtEl = document.getElementById('wizElecCalcValue');
+  if(unitsEl) unitsEl.textContent = units;
+  if(rateEl) rateEl.textContent = rate;
+  if(amtEl) amtEl.textContent = inr(units*rate);
+}
+function applyElecCalc(){
+  const w = UI.wizard;
+  const units = Math.max(num(w.currUnit) - num(w.prevUnit), 0);
+  const rate = num(w.elecRate) || (DB.settings.elecRatePerUnit||8.5);
+  const amount = Math.round(units*rate);
+  w.electricity = amount;
+  const elecInput = document.getElementById('wiz_electricity');
+  if(elecInput) elecInput.value = amount;
+  updateWizardTotals();
+  toast(`Electricity set to ₹${amount} for ${units} units.`);
+}
+function updateWizardTotals(){
+  const w = UI.wizard;
+  const total = calcTotal(w);
+  const totalEl = document.getElementById('wizTotalValue');
+  if(totalEl) totalEl.textContent = inr(total);
+  ['rent','electricity','maintenance','png','other','discount'].forEach(f=>{
+    const el = document.getElementById('calc_'+f);
+    if(el) el.textContent = (f==='discount' ? '– ' : '') + inr(w[f]);
+  });
+  const paid = num(w.amountPaid);
+  const balance = Math.max(total - paid, 0);
+  const balEl = document.getElementById('wizBalance');
+  if(balEl) balEl.textContent = inr(balance);
+  const statusEl = document.getElementById('wizStatus');
+  if(statusEl){
+    const st = calcStatus(total, paid);
+    statusEl.textContent = st;
+    statusEl.className = 'badge ' + statusClass(st);
+  }
+  const paidOfEl = document.getElementById('wizPaidOfTotal');
+  if(paidOfEl) paidOfEl.textContent = 'of ' + inr(total);
+}
+
+function renderWizard(){
+  const w = UI.wizard;
+  const total = calcTotal(w);
+  const steps = ['Tenant & Month','Charges','Payment'];
+  const stepsHtml = steps.map((s,i)=>`<div class="wizard-step ${w.step===i+1?'active':(w.step>i+1?'done':'')}">${i+1}. ${s}</div>`).join('');
+
+  let body = '';
+  if(w.step===1) body = renderWizardStep1();
+  else if(w.step===2) body = renderWizardStep2();
+  else body = renderWizardStep3();
+
+  return `
+    <div class="card" style="padding:24px 26px;max-width:760px;">
+      <div class="wizard-steps">${stepsHtml}</div>
+      ${body}
+    </div>`;
+}
+
+function renderWizardStep1(){
+  const w = UI.wizard;
+  const tenantOptions = DB.tenants.map(t=>`<option value="${t.id}" ${t.id===w.tenantId?'selected':''}>Flat ${esc(t.flat)} — ${esc(t.name)} (Floor ${esc(t.floor)})</option>`).join('');
+  const tenant = getTenant(w.tenantId);
+  return `
+    <div class="field"><label>Select Tenant</label>
+      <select id="wiz_tenant" onchange="onWizardTenantChange(this)">
+        <option value="">— Choose tenant / flat —</option>
+        ${tenantOptions}
+      </select>
+    </div>
+    ${tenant ? `
+    <div class="doc-tenant-grid" style="margin-bottom:16px;">
+      <div><span class="k">Tenant</span><span class="v">${esc(tenant.name)}</span></div>
+      <div><span class="k">Flat</span><span class="v">${esc(tenant.flat)}</span></div>
+      <div><span class="k">Floor</span><span class="v">${esc(tenant.floor)}</span></div>
+      <div><span class="k">Mobile</span><span class="v">${esc(tenant.mobile)||'—'}</span></div>
+    </div>` : ''}
+    <div class="field-row">
+      <div class="field"><label>Billing Month <span style="font-weight:400;color:var(--slate-light);">(for reports &amp; bill numbering)</span></label><input type="month" id="wiz_month" value="${w.month}" onchange="UI.wizard.month=this.value; UI.wizard.periodFrom=firstDayOfMonth(this.value); UI.wizard.periodTo=lastDayOfMonth(this.value); render();"/></div>
+      <div class="field"><label>Rent for This Billing Period</label>
+        <div class="currency-input"><span class="rupee">₹</span><input id="wiz_rent" value="${w.rent||''}" oninput="onWizardField(this,'rent','num')"/></div>
+      </div>
+    </div>
+    <div class="card" style="padding:16px 18px;background:#FAF8F2;border-style:dashed;margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;color:var(--slate);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.04em;">Custom Billing Period</div>
+      <div style="font-size:12.5px;color:var(--slate-light);margin-bottom:12px;">For mid-month rent cycles, choose any dates — for example <strong>15 Sep → 14 Oct</strong>. The rent amount remains editable for this exact period.</div>
+      <div class="field-row" style="margin-bottom:0;">
+        <div class="field"><label>Period From</label><input type="date" id="wiz_period_from" value="${w.periodFrom||firstDayOfMonth(w.month)}" onchange="UI.wizard.periodFrom=this.value;"/></div>
+        <div class="field"><label>Period To</label><input type="date" id="wiz_period_to" value="${w.periodTo||lastDayOfMonth(w.month)}" onchange="UI.wizard.periodTo=this.value;"/></div>
+      </div>
+      <div class="hint" style="margin-top:8px;">Selected period: <strong>${formatBillingPeriod(w.periodFrom||firstDayOfMonth(w.month), w.periodTo||lastDayOfMonth(w.month))}</strong></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Bill Date</label><input type="date" id="wiz_billdate" value="${w.billDate}" onchange="UI.wizard.billDate=this.value;"/></div>
+      <div class="field"><label>Due Date</label><input type="date" id="wiz_duedate" value="${w.dueDate}" onchange="UI.wizard.dueDate=this.value;"/></div>
+    </div>
+    <div class="modal-foot" style="padding:16px 0 0;border-top:none;">
+      <button class="btn btn-ghost" onclick="closeWizard()">Cancel</button>
+      <button class="btn btn-primary" onclick="wizardValidateStep1()">Next: Enter Charges →</button>
+    </div>`;
+}
+function wizardValidateStep1(){
+  const w = UI.wizard;
+  if(!w.tenantId){ toast('Please select a tenant.'); return; }
+  if(!w.month){ toast('Please select a billing month.'); return; }
+  if(!w.periodFrom || !w.periodTo){ toast('Please select both billing period dates.'); return; }
+  if(w.periodFrom > w.periodTo){ toast('Period From cannot be after Period To.'); return; }
+  const dup = findBillForTenantPeriod(w.tenantId, w.periodFrom, w.periodTo, w.editingBillId);
+  if(dup){
+    toast('A bill already exists for this tenant & billing period — opening it for edit.');
+    openWizard(dup.id);
+    return;
+  }
+  wizardGoStep(2);
+}
+
+function renderWizardStep2(){
+  const w = UI.wizard;
+  const total = calcTotal(w);
+  const units = Math.max(num(w.currUnit) - num(w.prevUnit), 0);
+  const rate = num(w.elecRate) || (DB.settings.elecRatePerUnit||8.5);
+  const rows = [
+    ['rent','Monthly Rent'],['electricity','Electricity Consumption'],['maintenance','Maintenance'],
+    ['png','PNG Gas'],['other','Other Charges'],['discount','Discount / Adjustment']
+  ];
+  const fieldsHtml = rows.map(([f,label])=>`
+    <div class="field"><label>${label}</label>
+      <div class="currency-input"><span class="rupee">₹</span>
+        <input id="wiz_${f}" value="${w[f]||''}" placeholder="0" oninput="onWizardField(this,'${f}','num')"/>
+      </div>
+    </div>`).join('');
+  return `
+    <div class="card" style="padding:16px 18px;background:#FAF8F2;border-style:dashed;margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;color:var(--slate);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.04em;">Electricity Unit Calculator</div>
+      <div class="field-row3">
+        <div class="field" style="margin-bottom:0;"><label>Previous Reading (Unit)</label>
+          <input id="wiz_prevUnit" value="${w.prevUnit||''}" placeholder="0" oninput="onWizardElecInput(this,'prevUnit')"/>
+        </div>
+        <div class="field" style="margin-bottom:0;"><label>Current Reading (Unit)</label>
+          <input id="wiz_currUnit" value="${w.currUnit||''}" placeholder="0" oninput="onWizardElecInput(this,'currUnit')"/>
+        </div>
+        <div class="field" style="margin-bottom:0;"><label>Rate <span style="font-weight:400;color:var(--slate-light);">(₹/unit)</span></label>
+          <div class="currency-input"><span class="rupee">₹</span>
+            <input id="wiz_elecRate" value="${w.elecRate||rate}" oninput="onWizardElecInput(this,'elecRate')"/>
+          </div>
+        </div>
+      </div>
+      <div class="calc-line" style="border-bottom:none;margin-top:6px;">
+        <span>Units Consumed: <strong id="wizUnitsValue">${units}</strong> × ₹<span id="wizRateValue">${rate}</span>/unit</span>
+        <span class="amt" id="wizElecCalcValue">${inr(units*rate)}</span>
+      </div>
+      <div style="margin-top:8px;">
+        <button type="button" class="btn btn-sm btn-primary" onclick="applyElecCalc()">${icon('check',13)} Use This in Electricity Charge</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">${fieldsHtml}</div>
+    <div class="total-banner">
+      <div><div class="tl">Total Bill for Selected Period</div><div class="tv" id="wizTotalValue">${inr(total)}</div></div>
+      <div style="text-align:right;font-size:12px;color:var(--brass-light);line-height:1.6;">
+        Rent + Electricity + Maintenance<br/>+ PNG Gas + Other − Discount
+      </div>
+    </div>
+    <div class="modal-foot" style="padding:16px 0 0;border-top:none;">
+      <button class="btn btn-ghost" onclick="wizardGoStep(1)">${icon('chevleft',14)} Back</button>
+      <button class="btn btn-primary" onclick="wizardGoStep(3)">Next: Payment →</button>
+    </div>`;
+}
+
+function renderWizardStep3(){
+  const w = UI.wizard;
+  const total = calcTotal(w);
+  const paid = num(w.amountPaid);
+  const balance = Math.max(total-paid,0);
+  const status = calcStatus(total, paid);
+  return `
+    <div class="field-row">
+      <div class="field"><label>Amount Paid</label>
+        <div class="currency-input"><span class="rupee">₹</span><input id="wiz_paid" value="${w.amountPaid||''}" placeholder="0" oninput="onWizardField(this,'amountPaid','num')"/></div>
+        <div class="hint" id="wizPaidOfTotal">of ${inr(total)}</div>
+      </div>
+      <div class="field"><label>Payment Date</label><input type="date" id="wiz_paydate" value="${w.paymentDate}" onchange="UI.wizard.paymentDate=this.value;"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Payment Method</label>
+        <select id="wiz_method" onchange="UI.wizard.paymentMethod=this.value;">
+          ${['UPI','Cash','Bank Transfer','Other'].map(m=>`<option ${w.paymentMethod===m?'selected':''}>${m}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Transaction / Reference ID</label><input id="wiz_txn" value="${esc(w.transactionId)}" placeholder="Optional" oninput="UI.wizard.transactionId=this.value;"/></div>
+    </div>
+    <div class="card" style="padding:16px 18px;background:#FAF8F2;border-style:dashed;">
+      <div class="calc-line"><span>Total Bill</span><span class="amt">${inr(total)}</span></div>
+      <div class="calc-line"><span>Amount Paid</span><span class="amt">${inr(paid)}</span></div>
+      <div class="calc-line" style="border-bottom:none;"><span>Balance Due</span><span class="amt" id="wizBalance"><strong>${inr(balance)}</strong></span></div>
+      <div style="margin-top:8px;">Status: <span class="badge ${statusClass(status)}" id="wizStatus">${status}</span></div>
+    </div>
+    <div class="modal-foot" style="padding:16px 0 0;border-top:none;">
+      <button class="btn btn-ghost" onclick="wizardGoStep(2)">${icon('chevleft',14)} Back</button>
+      <button class="btn btn-brass" onclick="generateBill()">${icon('receipt',15)} Generate Bill</button>
+    </div>`;
+}
+
+async function generateBill(){
+  if(!requireAdmin('save a bill')) return;
+  const w = UI.wizard;
+  if(!w.tenantId){ toast('Please select a tenant.'); wizardGoStep(1); return; }
+  if(!w.month){ toast('Please select a billing month.'); wizardGoStep(1); return; }
+  if(!w.periodFrom || !w.periodTo || w.periodFrom > w.periodTo){ toast('Please select a valid billing period (From and To).'); wizardGoStep(1); return; }
+  const tenant = getTenant(w.tenantId);
+  if(!tenant){ toast('Selected tenant not found.'); return; }
+  const total = calcTotal(w);
+  const paid = num(w.amountPaid);
+  const balance = Math.max(total-paid,0);
+  const status = calcStatus(total, paid);
+
+  let bill;
+  if(w.editingBillId){
+    bill = getBill(w.editingBillId);
+    Object.assign(bill, {
+      tenantId:w.tenantId, tenantName:tenant.name, flat:tenant.flat, floor:tenant.floor,
+      month:w.month, monthLabel: monthLabel(w.month), periodFrom:w.periodFrom, periodTo:w.periodTo, billDate:w.billDate, dueDate:w.dueDate,
+      rent:num(w.rent), electricity:num(w.electricity), maintenance:num(w.maintenance), png:num(w.png),
+      other:num(w.other), discount:num(w.discount), total, amountPaid:paid, paymentDate:w.paymentDate,
+      paymentMethod:w.paymentMethod, transactionId:w.transactionId, balance, status,
+      prevUnit:num(w.prevUnit), currUnit:num(w.currUnit), elecRate:num(w.elecRate)||(DB.settings.elecRatePerUnit||8.5)
+    });
+    if(status!=='PAID'){ bill.receiptNo=null; bill.receiptDate=null; }
+    toast('Bill updated.');
+  } else {
+    const billNo = genBillNo(w.month);
+    bill = {
+      id: uid(), billNo, tenantId:w.tenantId, tenantName:tenant.name, flat:tenant.flat, floor:tenant.floor,
+      month:w.month, monthLabel: monthLabel(w.month), periodFrom:w.periodFrom, periodTo:w.periodTo, billDate:w.billDate, dueDate:w.dueDate,
+      rent:num(w.rent), electricity:num(w.electricity), maintenance:num(w.maintenance), png:num(w.png),
+      other:num(w.other), discount:num(w.discount), total, amountPaid:paid, paymentDate:w.paymentDate,
+      paymentMethod:w.paymentMethod, transactionId:w.transactionId, balance, status,
+      prevUnit:num(w.prevUnit), currUnit:num(w.currUnit), elecRate:num(w.elecRate)||(DB.settings.elecRatePerUnit||8.5),
+      receiptNo:null, receiptDate:null, createdAt: Date.now()
+    };
+    DB.bills.push(bill);
+    await saveCounters();
+    toast('Bill generated.');
+  }
+  await saveBills();
+  UI.wizard = null;
+  openPreview(bill.id, 'bill');
+}
+
+/* ============================== PREVIEW (BILL / RECEIPT) =================== */
+function openPreview(billId, mode){
+  UI.previewBillId = billId;
+  UI.previewMode = mode || 'bill';
+  UI.view = 'preview';
+  render();
+}
+function backToEditFromPreview(){
+  if(!requireAdmin('edit a bill')) return;
+  const id = UI.previewBillId;
+  UI.previewBillId = null;
+  openWizard(id);
+}
+function renderPreview(){
+  const bill = getBill(UI.previewBillId);
+  if(!bill) return `<div class="empty-state"><div class="big">Bill not found</div><button class="btn btn-primary" onclick="goView('bills')">Back to Bills</button></div>`;
+  const isReceipt = UI.previewMode==='receipt';
+  const toolbar = `
+    <div class="doc-toolbar">
+      <button class="btn btn-ghost" onclick="${isReceipt? `openPreview('${bill.id}','bill')` : (isAdmin()?`backToEditFromPreview()`:`goView('bills')`)}">${icon('chevleft',14)} ${isReceipt?'Back to Bill':(isAdmin()?'Back to Edit':'Back to Bills')}</button>
+      <button class="btn" onclick="${isReceipt ? `exportDocPdf('receiptDoc','${bill.receiptNo||bill.billNo}.pdf')` : `exportBillPdf('${bill.id}')`}">${icon('download',15)} Download PDF</button>
+      <button class="btn" onclick="exportDocImage('${isReceipt?'receiptDoc':'billDoc'}','${isReceipt?bill.receiptNo:bill.billNo}.png')">${icon('image',15)} Download Image</button>
+      <button class="btn" onclick="printDoc()">${icon('printer',15)} Print</button>
+      <button class="btn btn-brass" onclick="shareWhatsapp('${bill.id}', ${isReceipt})">${icon('whatsapp',15)} WhatsApp</button>
+      ${(!isReceipt && isAdmin() && bill.status!=='PAID') ? `<button class="btn btn-primary" onclick="openPaymentModal('${bill.id}')">${icon('check',15)} Payment Done</button>` : ''}
+      ${(!isReceipt && isAdmin() && bill.status==='PAID') ? `<button class="btn btn-primary" onclick="generateReceipt('${bill.id}')">${icon('receipt',15)} Generate Receipt</button>` : ''}
+      ${(isReceipt) ? '' : `<button class="btn btn-ghost" onclick="goView('bills')">${icon('close',14)} Close</button>`}
+    </div>`;
+  const doc = isReceipt ? renderReceiptDoc(bill) : renderBillDoc(bill);
+  return `${toolbar}<div class="doc-stage" id="printable">${doc}</div>`;
+}
+
+function renderBillDoc(b){
+  const s = DB.settings;
+  const hasUnits = num(b.currUnit) > 0 || num(b.prevUnit) > 0;
+  const units = hasUnits ? Math.max(num(b.currUnit) - num(b.prevUnit), 0) : null;
+  const elecLabel = hasUnits
+    ? `Electricity Consumption <span style="display:block;font-size:11px;color:var(--slate-light);font-weight:400;">(${num(b.prevUnit)} → ${num(b.currUnit)} = ${units} units × ₹${num(b.elecRate)||(s.elecRatePerUnit||8.5)}/unit)</span>`
+    : 'Electricity Consumption';
+  const rows = [
+    ['Monthly Rent', b.rent],
+    [elecLabel, b.electricity],
+    ['Maintenance', b.maintenance],
+    ['PNG Gas', b.png],
+    ['Other Charges', b.other],
+  ];
+  let rowsHtml = rows.map(([label,val])=>`<tr><td>${label}</td><td class="num">${inr(val)}</td></tr>`).join('');
+  if(num(b.discount)>0){ rowsHtml += `<tr><td>Discount</td><td class="num">– ${inr(b.discount)}</td></tr>`; }
+  return `
+  <div class="doc" id="billDoc">
+    <div class="doc-header">
+      <div>
+        <div class="brand-name">${esc(s.propertyName||'Property Name')}</div>
+        <div class="brand-addr">${esc(s.address||'')}</div>
+        <div class="doc-title">Rent &amp; Utility Bill</div>
+      </div>
+      <div class="doc-meta">
+        <div class="row"><span class="k">Bill No.</span><span class="v mono">${b.billNo}</span></div>
+        <div class="row"><span class="k">Billing Period</span><span class="v">${esc(formatBillingPeriod(b.periodFrom || firstDayOfMonth(b.month), b.periodTo || lastDayOfMonth(b.month)))}</span></div>
+        <div class="row"><span class="k">Bill Date</span><span class="v">${fmtDateDMY(b.billDate)}</span></div>
+        <div class="row"><span class="k">Due Date</span><span class="v">${fmtDateDMY(b.dueDate)}</span></div>
+        <div class="doc-status-tag" style="background:${b.status==='PAID'?'var(--success-bg)':b.status==='PENDING'?'var(--rust-bg)':'var(--amber-bg)'};color:${b.status==='PAID'?'var(--success)':b.status==='PENDING'?'var(--rust)':'var(--amber)'};">${b.status}</div>
+      </div>
+    </div>
+
+    <div class="doc-section-title">Tenant Details</div>
+    <div class="doc-tenant-grid">
+      <div><span class="k">Tenant Name</span><span class="v">${esc(b.tenantName)}</span></div>
+      <div><span class="k">Mobile</span><span class="v">${esc((getTenant(b.tenantId)||{}).mobile)||'—'}</span></div>
+      <div><span class="k">Flat / Room No.</span><span class="v">${esc(b.flat)}</span></div>
+      <div><span class="k">Floor</span><span class="v">${esc(b.floor)}</span></div>
+    </div>
+
+    <div class="doc-section-title">Charges</div>
+    <table class="doc-table">
+      <thead><tr><th>Description</th><th class="num">Amount</th></tr></thead>
+      <tbody>${rowsHtml}
+        <tr class="total-row"><td>Total Bill</td><td class="num">${inr(b.total)}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="doc-payment-box">
+      <div class="doc-payment-inner">
+        <div class="prow"><span>Total Bill</span><span class="mono">${inr(b.total)}</span></div>
+        <div class="prow"><span>Amount Paid</span><span class="mono">${inr(b.amountPaid)}</span></div>
+        <div class="prow balance"><span>Balance Due</span><span class="mono">${inr(b.balance)}</span></div>
+      </div>
+    </div>
+
+    ${s.upiId ? (()=>{
+      const pay = getBillPaymentInfo(b);
+      const qrAmt = pay.amount;
+      const upiUri = pay.upiUri;
+      const qrImgSrc = makeUpiQrDataUrl(upiUri);
+      return `
+    <div class="doc-payqr-box">
+      <div class="doc-payqr-code">${qrImgSrc ? `<img src="${qrImgSrc}" alt="UPI QR Code"/>` : ''}</div>
+      <div class="doc-payqr-info">
+        <div class="doc-payqr-title">Scan &amp; Pay via UPI</div>
+        <div class="doc-payqr-amt">Amount Due: <strong>${inr(qrAmt)}</strong></div>
+        <div class="doc-payqr-upi">UPI ID: <strong>${esc(s.upiId)}</strong></div>
+        <a href="${upiUri}" class="btn btn-brass btn-sm doc-payqr-btn" style="margin-top:8px;">${icon('check',13)} Pay Now with PhonePe / GPay / Paytm</a>
+        <div class="doc-payqr-note" style="margin-top:8px;">Please send a screenshot of the payment after paying, for confirmation.</div>
+      </div>
+    </div>`;
+    })() : ''}
+
+    <div class="doc-footer">
+      <div class="thanks">Thank you for your timely payment.</div>
+      <div class="manager"><strong>Managed By:</strong> ${esc(s.managerName||s.ownerName||'—')}${s.managerPhone?' &nbsp;·&nbsp; '+esc(s.managerPhone):''}</div>
+      ${s.upiId ? `<div>UPI ID: <strong>${esc(s.upiId)}</strong></div>` : ''}
+      ${s.paymentInstructions ? `<div style="margin-top:6px;">${esc(s.paymentInstructions)}</div>` : ''}
+      <div class="doc-credit">Design and Created by Aryan</div>
+    </div>
+  </div>`;
+}
+
+function renderReceiptDoc(b){
+  const s = DB.settings;
+  return `
+  <div class="doc" id="receiptDoc">
+    <div class="doc-header">
+      <div>
+        <div class="brand-name">${esc(s.propertyName||'Property Name')}</div>
+        <div class="brand-addr">${esc(s.address||'')}</div>
+        <div class="doc-title">Payment Receipt</div>
+      </div>
+      <div class="doc-meta">
+        <div class="row"><span class="k">Receipt No.</span><span class="v mono">${b.receiptNo||'—'}</span></div>
+        <div class="row"><span class="k">Payment Date</span><span class="v">${fmtDateDMY(b.receiptDate||b.paymentDate)}</span></div>
+        <div class="doc-status-tag" style="background:var(--success-bg);color:var(--success);">PAID</div>
+      </div>
+    </div>
+
+    <div class="doc-section-title">Tenant Details</div>
+    <div class="doc-tenant-grid">
+      <div><span class="k">Tenant Name</span><span class="v">${esc(b.tenantName)}</span></div>
+      <div><span class="k">Flat Number</span><span class="v">${esc(b.flat)}</span></div>
+      <div><span class="k">Billing Period</span><span class="v">${esc(formatBillingPeriod(b.periodFrom || firstDayOfMonth(b.month), b.periodTo || lastDayOfMonth(b.month)))}</span></div>
+      <div><span class="k">Bill No.</span><span class="v">${b.billNo}</span></div>
+    </div>
+
+    <div class="doc-section-title">Payment Details</div>
+    <table class="doc-table">
+      <tbody>
+        <tr><td>Original Bill Amount</td><td class="num">${inr(b.total)}</td></tr>
+        <tr><td>Amount Received</td><td class="num">${inr(b.amountPaid)}</td></tr>
+        <tr><td>Payment Method</td><td class="num">${esc(b.paymentMethod)}</td></tr>
+        <tr><td>Transaction ID</td><td class="num">${esc(b.transactionId)||'—'}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="doc-big-total">
+      <div class="lbl">Payment Received</div>
+      <div class="val">${inr(b.amountPaid)}</div>
+      <div style="margin-top:10px;"><span class="badge paid">PAID</span></div>
+    </div>
+
+    <div class="doc-footer">
+      <div class="thanks">Thank you for your timely payment.</div>
+      <div class="manager"><strong>Managed By:</strong> ${esc(s.managerName||s.ownerName||'—')}${s.managerPhone?' &nbsp;·&nbsp; '+esc(s.managerPhone):''}</div>
+      <div class="doc-credit">Design and Created by Aryan</div>
+    </div>
+  </div>`;
+}
+
+async function generateReceipt(billId){
+  const bill = getBill(billId);
+  if(!bill) return;
+  if(bill.status!=='PAID'){ toast('Bill must be fully paid to generate a receipt.'); return; }
+  if(!bill.receiptNo){
+    bill.receiptNo = genReceiptNo(bill.month);
+    bill.receiptDate = todayISO();
+    await Promise.all([saveBills(), saveCounters()]);
+  }
+  openPreview(billId, 'receipt');
+}
+
+/* ============================== EXPORT: PDF / IMAGE / PRINT / WHATSAPP ===== */
+function exportDocPdf(elId, filename, paymentInfo){
+  const node = document.getElementById(elId);
+  if(!node || !window.html2canvas || !window.jspdf){ toast('Export tools still loading — try again in a moment.'); return; }
+  toast('Preparing PDF…');
+
+  // Downloaded bill should show only the UPI scanner — hide the "Pay Now" button
+  // during capture (it stays visible in the on-screen preview).
+  const payBtns = node.querySelectorAll('.doc-payqr-btn');
+  const payBtnPrevDisplay = [];
+  payBtns.forEach(btn=>{ payBtnPrevDisplay.push(btn.style.display); btn.style.display = 'none'; });
+
+  html2canvas(node, {scale:2, backgroundColor:'#ffffff', useCORS:true}).then(canvas=>{
+    payBtns.forEach((btn,i)=>{ btn.style.display = payBtnPrevDisplay[i]; });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p','mm','a4');
+    const pageW = 210, pageH = 297;
+    const imgW = pageW;
+    const imgH = canvas.height * imgW / canvas.width;
+    const imgData = canvas.toDataURL('image/png');
+    let lastContentBottom; // mm — y where the rasterized doc content ends on its LAST page
+    if(imgH <= pageH){
+      pdf.addImage(imgData,'PNG',0,0,imgW,imgH);
+      lastContentBottom = imgH;
+    } else {
+      // paginate tall content
+      let heightLeft = imgH, position = 0;
+      pdf.addImage(imgData,'PNG',0,position,imgW,imgH);
+      heightLeft -= pageH;
+      while(heightLeft > 0){
+        position = heightLeft - imgH;
+        pdf.addPage();
+        pdf.addImage(imgData,'PNG',0,position,imgW,imgH);
+        heightLeft -= pageH;
+      }
+      lastContentBottom = pageH + heightLeft; // heightLeft <= 0 here
+    }
+
+    // Append a REAL (vector) UPI payment block — a freshly-drawn PNG QR plus an
+    // Add a genuine vector PDF hyperlink instead of relying on the rasterized
+    // HTML "Pay Now" button. The PDF link uses the same dynamic UPI URI as the
+    // QR code and on-screen button.
+    // It uses the
+    // SAME dynamic upiUri as the on-screen preview (amount + invoice id come straight
+    // from the bill object — see getBillPaymentInfo() — nothing hardcoded).
+    if(paymentInfo && paymentInfo.upiUri){
+      const margin = 14;
+      const blockH = 62;
+      let y = lastContentBottom + 8;
+      if(y + blockH > pageH - 8){ pdf.addPage(); y = 16; }
+
+      pdf.setDrawColor(210,210,210);
+      pdf.setLineWidth(0.3);
+      pdf.line(margin, y, pageW-margin, y);
+      y += 8;
+
+      const qrSizeMm = 32;
+      const qrPng = makeUpiQrPngDataUrl(paymentInfo.upiUri, 6, 8);
+      if(qrPng) pdf.addImage(qrPng, 'PNG', margin, y, qrSizeMm, qrSizeMm);
+
+      const textX = margin + qrSizeMm + 8;
+      let ty = y + 6;
+      pdf.setFont(undefined,'bold'); pdf.setFontSize(12); pdf.setTextColor(30,30,30);
+      pdf.text('Scan & Pay via UPI', textX, ty); ty += 7;
+
+      pdf.setFont(undefined,'normal'); pdf.setFontSize(10); pdf.setTextColor(60,60,60);
+      pdf.text(`Amount Due: Rs. ${Number(paymentInfo.amount).toFixed(2)}`, textX, ty); ty += 6;
+      pdf.text(`UPI ID: ${paymentInfo.upiId}`, textX, ty); ty += 6;
+      pdf.text(`Invoice No: ${paymentInfo.invoiceId}`, textX, ty); ty += 8;
+
+      // Add a REAL clickable payment link to the PDF. The bill itself is
+      // rasterized by html2canvas, so its HTML <a> tag cannot remain clickable.
+      // jsPDF annotations are used here so tapping the link in a PDF viewer can
+      // hand the UPI URI to the device's payment app.
+      const payLabel = 'CLICK HERE TO PAY ONLINE';
+      const linkY = ty;
+      pdf.setFont(undefined,'bold');
+      pdf.setFontSize(11);
+      pdf.setTextColor(31, 111, 72);
+      if(typeof pdf.textWithLink === 'function'){
+        pdf.textWithLink(payLabel, textX, linkY, { url: paymentInfo.upiUri });
+      }else{
+        pdf.text(payLabel, textX, linkY);
+        const linkW = pdf.getTextWidth(payLabel);
+        pdf.link(textX, linkY-5, linkW, 6, { url: paymentInfo.upiUri });
+      }
+      ty += 7;
+      pdf.setFont(undefined,'normal');
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(90,90,90);
+      pdf.text('Tap the link above on your phone to open your UPI payment app.', textX, ty);
+
+      pdf.setTextColor(0,0,0);
+    }
+
+    pdf.save(filename);
+    toast('PDF downloaded.');
+  }).catch(err=>{
+    payBtns.forEach((btn,i)=>{ btn.style.display = payBtnPrevDisplay[i]; });
+    console.error(err); toast('Could not generate PDF.');
+  });
+}
+function exportBillPdf(billId){
+  const bill = getBill(billId);
+  if(!bill) return;
+  exportDocPdf('billDoc', bill.billNo+'.pdf', getBillPaymentInfo(bill));
+}
+function exportDocImage(elId, filename){
+  const node = document.getElementById(elId);
+  if(!node || !window.html2canvas){ toast('Export tools still loading — try again in a moment.'); return; }
+  toast('Preparing image…');
+
+  // Downloaded bill should show only the UPI scanner — hide the "Pay Now" button
+  // during capture (it stays visible in the on-screen preview).
+  const payBtns = node.querySelectorAll('.doc-payqr-btn');
+  const payBtnPrevDisplay = [];
+  payBtns.forEach(btn=>{ payBtnPrevDisplay.push(btn.style.display); btn.style.display = 'none'; });
+  const restoreBtns = ()=> payBtns.forEach((btn,i)=>{ btn.style.display = payBtnPrevDisplay[i]; });
+
+  html2canvas(node, {scale:2, backgroundColor:'#ffffff', useCORS:true}).then(canvas=>{
+    restoreBtns();
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    toast('Image downloaded.');
+  }).catch(()=>{ restoreBtns(); toast('Could not generate image.'); });
+}
+function printDoc(){ window.print(); }
+
+function normalizePhone(mobile){
+  let m = (mobile||'').replace(/\D/g,'');
+  if(!m) return '';
+  if(m.length===10) return '91'+m;
+  if(m.length===12 && m.startsWith('91')) return m;
+  if(m.length===11 && m.startsWith('0')) return '91'+m.slice(1);
+  return m;
+}
+function shareWhatsapp(billId, isReceipt){
+  const bill = getBill(billId);
+  if(!bill) return;
+  const tenant = getTenant(bill.tenantId) || {mobile:''};
+  const phone = normalizePhone(tenant.mobile);
+  let text;
+  if(isReceipt){
+    text = `Hello ${bill.tenantName},\n\nWe have received your payment for ${monthLabel(bill.month)}.\n\nReceipt No: ${bill.receiptNo}\nAmount Received: ${inrPlain(bill.amountPaid)}\nStatus: PAID\n\nThank you for your timely payment.`;
+  } else {
+    text = `Hello ${bill.tenantName},\n\nYour Monthly Rent & Utility Bill for ${monthLabel(bill.month)} is ready.\n\nTotal Bill: ${inrPlain(bill.total)}\nAmount Paid: ${inrPlain(bill.amountPaid)}\nBalance Due: ${inrPlain(bill.balance)}\n\nPlease find your bill attached.\n\nThank you.`;
+  }
+  const url = phone
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+    : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  if(!phone) toast('No mobile number on file — opening WhatsApp without a specific contact.');
+  window.open(url, '_blank');
+}
+
+/* ============================== BILLS HISTORY =============================== */
+function renderBillsView(){
+  return `
+    <div class="filter-bar">
+      <div class="search-box">${icon('search',15)}<input id="billsSearchInput" placeholder="Search tenant, flat, bill no. or month" value="${esc(UI.billsSearch)}" oninput="onBillsSearch(this.value)"/></div>
+      <div class="chip ${UI.billsStatus==='all'?'active':''}" onclick="setBillsFilter('all')">All</div>
+      <div class="chip ${UI.billsStatus==='PAID'?'active':''}" onclick="setBillsFilter('PAID')">Paid</div>
+      <div class="chip ${UI.billsStatus==='PARTIALLY PAID'?'active':''}" onclick="setBillsFilter('PARTIALLY PAID')">Partially Paid</div>
+      <div class="chip ${UI.billsStatus==='PENDING'?'active':''}" onclick="setBillsFilter('PENDING')">Pending</div>
+    </div>
+    <div id="billsTableContainer">${renderBillsTable()}</div>`;
+}
+function filteredBills(){
+  const q = UI.billsSearch.trim().toLowerCase();
+  return DB.bills.filter(b=>{
+    if(UI.billsStatus!=='all' && b.status!==UI.billsStatus) return false;
+    if(!q) return true;
+    return (b.tenantName||'').toLowerCase().includes(q) ||
+           (b.flat||'').toLowerCase().includes(q) ||
+           (b.billNo||'').toLowerCase().includes(q) ||
+           (monthLabel(b.month).toLowerCase().includes(q) || formatBillingPeriod(b.periodFrom || firstDayOfMonth(b.month), b.periodTo || lastDayOfMonth(b.month)).toLowerCase().includes(q));
+  }).sort((a,b)=> (b.month.localeCompare(a.month)) || (b.billNo||'').localeCompare(a.billNo||''));
+}
+function renderBillsTable(){
+  const bills = filteredBills();
+  const rows = bills.length ? bills.map(b=>`
+    <tr>
+      <td class="mono">${b.billNo}</td>
+      <td>${monthLabelShort(b.month)}</td>
+      <td>${esc(b.tenantName)}</td>
+      <td>${esc(b.flat)}</td>
+      <td class="num">${inr(b.total)}</td>
+      <td class="num">${inr(b.amountPaid)}</td>
+      <td class="num">${inr(b.balance)}</td>
+      <td><span class="badge ${statusClass(b.status)}">${b.status}</span></td>
+      <td>
+        <div class="action-row">
+          <button class="icon-btn" title="View" onclick="openPreview('${b.id}','bill')">${icon('eye',15)}</button>
+          ${isAdmin() ? `<button class="icon-btn" title="Edit" onclick="openWizard('${b.id}')">${icon('edit',15)}</button>` : ''}
+          <button class="icon-btn" title="Download PDF" onclick="quickPdf('${b.id}')">${icon('download',15)}</button>
+          ${isAdmin() && b.status!=='PAID' ? `<button class="icon-btn" title="Payment Done" style="color:var(--success);border-color:var(--success-bg);" onclick="openPaymentModal('${b.id}')">${icon('check',15)}</button>` : ''}
+          ${b.status==='PAID' ? `<button class="icon-btn" title="Receipt" onclick="generateReceipt('${b.id}')">${icon('receipt',15)}</button>` : ''}
+          <button class="icon-btn" title="WhatsApp" onclick="shareWhatsapp('${b.id}')">${icon('whatsapp',15)}</button>
+        </div>
+      </td>
+    </tr>`).join('') : `<tr class="empty-row"><td colspan="9">No bills match your search or filter.</td></tr>`;
+  return `
+  <div class="card table-wrap">
+    <table class="data">
+      <thead><tr><th>Bill No.</th><th>Month</th><th>Tenant</th><th>Flat</th><th class="num">Total</th><th class="num">Paid</th><th class="num">Balance</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+function onBillsSearch(v){
+  UI.billsSearch = v;
+  document.getElementById('billsTableContainer').innerHTML = renderBillsTable();
+}
+function setBillsFilter(status){
+  UI.billsStatus = status;
+  render();
+}
+function quickPdf(billId){
+  openPreview(billId,'bill');
+  setTimeout(()=>{ exportBillPdf(billId); }, 60);
+}
+
+/* ============================== REPORTS =================================== */
+function renderReports(){
+  const months = monthsWithData();
+  if(!months.includes(UI.reportsMonth)) months.unshift(UI.reportsMonth);
+  const bills = billsForMonth(UI.reportsMonth);
+  const sum = f => bills.reduce((s,b)=>s+num(b[f]),0);
+  const totalRent = sum('rent'), totalElec = sum('electricity'), totalPng = sum('png'), totalMaint = sum('maintenance'), totalOther = sum('other');
+  const totalBilling = bills.reduce((s,b)=>s+b.total,0);
+  const totalCollected = bills.reduce((s,b)=>s+num(b.amountPaid),0);
+  const totalPending = bills.reduce((s,b)=>s+Math.max(b.balance,0),0);
+  const paidTenants = bills.filter(b=>b.status==='PAID');
+  const pendingTenants = bills.filter(b=>b.status==='PENDING');
+  const partialTenants = bills.filter(b=>b.status==='PARTIALLY PAID');
+  const monthOptions = months.map(m=>`<option value="${m}" ${m===UI.reportsMonth?'selected':''}>${monthLabel(m)}</option>`).join('');
+
+  const tenantListHtml = (list, cls) => list.length ? `<ul style="margin:8px 0 0;padding-left:18px;font-size:13.5px;line-height:1.9;">${list.map(b=>`<li>${esc(b.tenantName)} <span style="color:var(--slate-light);">— Flat ${esc(b.flat)}</span></li>`).join('')}</ul>` : `<div class="hint">None</div>`;
+
+  return `
+  <div class="section-head"><div></div><select onchange="UI.reportsMonth=this.value; render();">${monthOptions}</select></div>
+  <div id="reportPrintable">
+  <div class="card" style="padding:24px 26px;margin-bottom:20px;" id="reportDoc">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:18px;">
+      <div>
+        <div class="serif" style="font-size:20px;font-weight:700;">${esc(DB.settings.propertyName||'Property')}</div>
+        <div style="font-size:12px;color:var(--brass);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-top:4px;">Monthly Collection Report</div>
+      </div>
+      <div style="text-align:right;font-size:13px;color:var(--slate);">${monthLabel(UI.reportsMonth)}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;">
+      <div class="calc-line"><span>Total Rent</span><span class="amt">${inr(totalRent)}</span></div>
+      <div class="calc-line"><span>Total Electricity</span><span class="amt">${inr(totalElec)}</span></div>
+      <div class="calc-line"><span>Total PNG</span><span class="amt">${inr(totalPng)}</span></div>
+      <div class="calc-line"><span>Total Maintenance</span><span class="amt">${inr(totalMaint)}</span></div>
+      <div class="calc-line"><span>Total Other Charges</span><span class="amt">${inr(totalOther)}</span></div>
+      <div class="calc-line"><span>Total Billing</span><span class="amt"><strong>${inr(totalBilling)}</strong></span></div>
+    </div>
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:6px;">
+      <div class="card stat-card acc-success"><div class="bar"></div><div class="label">Total Collected</div><div class="value small">${inr(totalCollected)}</div></div>
+      <div class="card stat-card acc-rust"><div class="bar"></div><div class="label">Total Pending</div><div class="value small">${inr(totalPending)}</div></div>
+      <div class="card stat-card acc-brass"><div class="bar"></div><div class="label">Bills Generated</div><div class="value">${bills.length}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px;">
+      <div><div class="doc-section-title" style="margin-top:0;">Paid Tenants (${paidTenants.length})</div>${tenantListHtml(paidTenants)}</div>
+      <div><div class="doc-section-title" style="margin-top:0;">Partially Paid (${partialTenants.length})</div>${tenantListHtml(partialTenants)}</div>
+      <div><div class="doc-section-title" style="margin-top:0;">Pending Tenants (${pendingTenants.length})</div>${tenantListHtml(pendingTenants)}</div>
+    </div>
+  </div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <button class="btn btn-primary" onclick="exportDocPdf('reportDoc','Collection-Report-${UI.reportsMonth}.pdf')">${icon('download',15)} Download PDF Report</button>
+    <button class="btn" onclick="printReport()">${icon('printer',15)} Print Report</button>
+    <button class="btn" onclick="exportCsv()">${icon('file',15)} Export CSV</button>
+  </div>`;
+}
+function printReport(){
+  document.getElementById('reportPrintable').id = 'printable';
+  window.print();
+  setTimeout(()=>{ const el=document.getElementById('printable'); if(el) el.id='reportPrintable'; }, 300);
+}
+function exportCsv(){
+  const bills = billsForMonth(UI.reportsMonth);
+  const header = ['Bill No','Month','Tenant','Flat','Floor','Rent','Electricity','Maintenance','PNG','Other','Discount','Total','Amount Paid','Balance','Status','Payment Date','Payment Method','Transaction ID'];
+  const lines = [header.join(',')];
+  bills.forEach(b=>{
+    const row = [b.billNo, monthLabel(b.month), b.periodFrom||firstDayOfMonth(b.month), b.periodTo||lastDayOfMonth(b.month), b.tenantName, b.flat, b.floor, b.rent, b.electricity, b.maintenance, b.png, b.other, b.discount, b.total, b.amountPaid, b.balance, b.status, b.paymentDate||'', b.paymentMethod||'', b.transactionId||''];
+    lines.push(row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `Collection-Report-${UI.reportsMonth}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV exported.');
+}
+
+/* ============================== SETTINGS =================================== */
+function renderSettings(){
+  const s = DB.settings;
+  const ro = isAdmin() ? '' : ' readonly';
+  return `
+  <div class="card" style="padding:24px 26px;max-width:680px;">
+    <div class="field"><label>Property / Building Name</label><input id="s_name" value="${esc(s.propertyName)}"${ro}/></div>
+    <div class="field"><label>Property Address</label><textarea id="s_addr" rows="2"${ro}>${esc(s.address)}</textarea></div>
+    <div class="field-row">
+      <div class="field"><label>Owner Name</label><input id="s_owner" value="${esc(s.ownerName)}"${ro}/></div>
+      <div class="field"><label>Manager Name</label><input id="s_manager" value="${esc(s.managerName)}"${ro}/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Manager Phone Number</label><input id="s_phone" value="${esc(s.managerPhone)}"${ro}/></div>
+      <div class="field"><label>UPI ID</label><input id="s_upi" value="${esc(s.upiId)}"${ro}/></div>
+    </div>
+    <div class="field"><label>Bank Details</label><textarea id="s_bank" rows="2"${ro}>${esc(s.bankDetails)}</textarea></div>
+    <div class="field-row">
+      <div class="field"><label>Default Due Date <span style="font-weight:400;color:var(--slate-light);">(days after bill date)</span></label><input id="s_due" value="${s.dueDateDays}"${ro}/></div>
+      <div class="field"><label>Electricity Rate <span style="font-weight:400;color:var(--slate-light);">(₹ per unit)</span></label>
+        <div class="currency-input"><span class="rupee">₹</span><input id="s_elecrate" value="${s.elecRatePerUnit!==undefined?s.elecRatePerUnit:8.5}"${ro}/></div>
+      </div>
+    </div>
+    <div class="field"><label>Payment Instructions</label><textarea id="s_instr" rows="2"${ro}>${esc(s.paymentInstructions)}</textarea></div>
+    ${isAdmin() ? `<button class="btn btn-primary" onclick="saveSettingsForm()">${icon('check',15)} Save Settings</button>` : `<div class="muted" style="margin-top:10px;">You can manage settings with your account.</div>`}
+  </div>
+  <div class="card" style="padding:24px 26px;max-width:680px;margin-top:18px;">
+    <div class="section-head" style="margin-bottom:8px;"><h2 style="font-size:16px;">Data Backup &amp; Safety</h2></div>
+    <p style="font-size:13px;color:var(--slate);margin:0 0 14px;">Every tenant and every month's bill record is saved automatically to the shared cloud and this device/browser. Changes made by you or the owner sync automatically. Download a backup file regularly as an extra safety copy.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="exportBackup()">${icon('download',15)} Download Backup (JSON)</button>
+      ${isAdmin() ? `<button class="btn" onclick="triggerImportBackup()">${icon('file',15)} Restore from Backup</button>` : ''}
+    </div>
+    <input type="file" id="backupFileInput" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)"/>
+  </div>
+  <div class="card" style="padding:24px 26px;max-width:680px;margin-top:18px;border-color:#EAD3CC;">
+    <div class="section-head" style="margin-bottom:8px;"><h2 style="font-size:16px;color:var(--rust);">Danger Zone</h2></div>
+    <p style="font-size:13px;color:var(--slate);margin:0 0 14px;">Remove every tenant and every saved bill so you can start completely fresh. Your property settings above will not be affected.</p>
+    ${isAdmin() ? `<button class="btn btn-danger" onclick="askClearAllData()">${icon('trash',15)} Clear All Tenants &amp; Bills</button>` : `<div class="muted">Sign in to manage this section.</div>`}
+  </div>`;
+}
+async function saveSettingsForm(){
+  if(!requireAdmin('change settings')) return;
+  DB.settings = {
+    propertyName: document.getElementById('s_name').value.trim() || 'Property',
+    address: document.getElementById('s_addr').value.trim(),
+    ownerName: document.getElementById('s_owner').value.trim(),
+    managerName: document.getElementById('s_manager').value.trim(),
+    managerPhone: document.getElementById('s_phone').value.trim(),
+    upiId: document.getElementById('s_upi').value.trim(),
+    bankDetails: document.getElementById('s_bank').value.trim(),
+    dueDateDays: num(document.getElementById('s_due').value) || 7,
+    paymentInstructions: document.getElementById('s_instr').value.trim(),
+    elecRatePerUnit: num(document.getElementById('s_elecrate').value) || 8.5
+  };
+  await saveSettings();
+  toast('Settings saved.');
+  render();
+}
+</script>
+</body>
+</html>
