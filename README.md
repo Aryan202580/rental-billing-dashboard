@@ -1,7 +1,9 @@
 # rental-billing-dashboard
 A modern web-based Rental Billing &amp; Property Management Dashboard for managing tenants, monthly rent, utilities, payments, receipts, reports and UPI-based billing.
 # 🏠 Rental Billing Dashboard
+## 🚀 Live Demo
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Open%20Dashboard-success?style=for-the-badge)](https://aryan202580.github.io/rental-billing-dashboard/)
 A modern, lightweight and easy-to-use **Rental Billing & Property Management Dashboard** designed to simplify monthly rent, utility billing, payment tracking and receipt management for residential rental properties.
 
 The application is built as a **single HTML file**, making it easy to run locally without a backend or installation.
